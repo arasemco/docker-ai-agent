@@ -1,0 +1,78 @@
+# Run the DeepSeek Harness (dsh) Web UI. Image is built with buildx bake
+# (see docker-bake.hcl / bake.sh), not compose build:
+#   bash bake.sh                # builds the "dsh" image (default group)
+#   bash bake.sh --push         # ...and pushes it to REGISTRY
+#   docker compose up dsh       # run it
+#
+# =============================================================================
+# WHY network_mode: host (read this before changing it)
+# =============================================================================
+# dsh's own web-app flag parser refuses `--host 0.0.0.0` outright — "it
+# would expose remote code execution to the network; use 127.0.0.1 instead"
+# (packages/bundle/web-app/src/startup.ts, see upstream SAFETY.md). It binds
+# 127.0.0.1 by default and this image does not override that.
+#
+# A container's loopback interface is its OWN — it is not the same 127.0.0.1
+# as the Docker host's, so on the default bridge network, `docker run -p
+# 3080:3080` publishes nothing (docker-proxy forwards to the container's
+# routable IP:port, and nothing is listening there — the process is only on
+# 127.0.0.1 inside the container's own namespace). That is the correct,
+# intended behavior here, not a bug to route around.
+#
+# `network_mode: host` makes the container share the host's network
+# namespace, so the container's 127.0.0.1:3080 IS the host's 127.0.0.1:3080
+# — the UI becomes reachable at http://localhost:3080 on the machine running
+# Docker, exactly as if you'd run `dsh web` there directly, with the same
+# loopback-only exposure upstream intends. It does NOT expose the UI to your
+# LAN or the internet — nothing does, by design, short of removing dsh's own
+# guard (don't).
+#
+# host networking has real tradeoffs (no network isolation from the host,
+# not available at all on Docker Desktop for Mac/Windows — only Linux hosts
+# get a real shared network namespace). If that's a blocker, run `dsh web`
+# on the host directly instead of in a container; this image's contribution
+# is a reproducible build, not a way to publish the UI more widely than
+# upstream intends it to be.
+#
+# All DSH_* runtime vars are read by entrypoint.sh — see that file's header
+# comment for the full reference.
+
+services:
+  dsh:
+    image: ghcr.io/arasemco/dsh:latest
+    hostname: dsh
+    #restart: unless-stopped
+    network_mode: host
+    # The image ships no init process of its own (see dsh/Dockerfile's last
+    # comment) — dsh spawns subprocesses for tool calls that need PID 1 to
+    # reap them and forward signals on `docker stop`. init: true asks Docker
+    # to inject its own built-in tini at the container-runtime level instead.
+    init: true
+    environment:
+      DSH_PORT: "3080"
+      # DSH_HOST: left unset on purpose — see the note above. Setting it to
+      # "0.0.0.0" is refused by both dsh itself and entrypoint.sh.
+      # DSH_TRUSTED_HOSTS: "example.internal:3080"
+    volumes:
+      # Profiles, credentials (the DeepSeek API key entered via Settings →
+      # Models), and session history — persists across container recreation.
+      - ./data/dsh-home:/home/dsh/.dsh
+      # The project directory dsh operates on. Point this at whatever
+      # you'd otherwise `cd` into before running `dsh web` on the host.
+      - ./data/workspace:/workspace
+
+  # Same image, no host networking — useful for CI smoke tests or anywhere
+  # you only need the process to start and pass its HEALTHCHECK, not to be
+  # reachable from outside the container. `docker compose exec dsh-isolated
+  # curl -sf http://127.0.0.1:3080/` still works from inside the container.
+  dsh-isolated:
+    image: ghcr.io/arasemco/dsh:latest
+    hostname: dsh-isolated
+    restart: "no"
+    profiles: ["isolated"]
+    init: true
+    environment:
+      DSH_PORT: "3080"
+    volumes:
+      - ./data/dsh-isolated-home:/home/dsh/.dsh
+      - ./data/workspace:/workspace
