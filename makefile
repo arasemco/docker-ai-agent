@@ -1,8 +1,8 @@
 SERVICE ?=
 SHELL_BIN ?= sh
-# Deployed stack's dsh home volume (~/stacks/deepseek-harness), read by
-# `make test` when neither DSH_CREDENTIALS nor data/dsh-home/.credentials.yaml
-# is available.
+# Named volume mounted as DSH_HOME by a deployed dsh container (compose
+# project "deepseek-harness", volume "dsh_home"). Read by `make test` when
+# neither DSH_CREDENTIALS nor data/dsh-home/.credentials.yaml is available.
 DSH_VOLUME ?= deepseek-harness_dsh_home
 
 .PHONY: default fs test
@@ -27,16 +27,17 @@ build:
 # BuildKit secret. Source, in order: $DSH_CREDENTIALS, the local
 # data/dsh-home/.credentials.yaml, then a 0600 temp copy out of $(DSH_VOLUME)
 # (deleted on exit). The volume is checked first, because `docker run -v` would
-# silently create an empty one.
+# silently create an empty one. --allow=fs.read grants bake the entitlement it
+# requires to read a secret file outside this directory (e.g. the /tmp copy).
 test:
-	@if [ -n "$$DSH_CREDENTIALS" ] || [ -f data/dsh-home/.credentials.yaml ]; then \
-		bash bake.sh test; \
-	else \
-		docker volume inspect $(DSH_VOLUME) >/dev/null && \
-		tmp=$$(mktemp) && trap 'rm -f "$$tmp"' EXIT && \
-		docker run --rm --entrypoint cat -v $(DSH_VOLUME):/dsh-home:ro ghcr.io/arasemco/dsh:latest /dsh-home/.credentials.yaml > "$$tmp" && \
-		DSH_CREDENTIALS="$$tmp" bash bake.sh test; \
-	fi
+	@creds="$${DSH_CREDENTIALS:-data/dsh-home/.credentials.yaml}"; \
+	if [ -z "$$DSH_CREDENTIALS" ] && [ ! -f "$$creds" ]; then \
+		docker volume inspect $(DSH_VOLUME) >/dev/null || exit 1; \
+		creds=$$(mktemp) && trap 'rm -f "$$creds"' EXIT && \
+		docker run --rm --entrypoint cat -v $(DSH_VOLUME):/dsh-home:ro ghcr.io/arasemco/dsh:latest /dsh-home/.credentials.yaml > "$$creds" || exit 1; \
+	fi; \
+	creds=$$(realpath "$$creds") && \
+	DSH_CREDENTIALS="$$creds" bash bake.sh test --allow=fs.read="$$creds"
 
 services:
 	docker compose config --services
@@ -52,7 +53,10 @@ check:
 pull:
 	docker compose pull $(SERVICE)
 
+# The container runs as uid 1000, not root: create the bind-mount sources as
+# the invoking user first, or Docker creates them root-owned and unwritable.
 up:
+	mkdir -p data/dsh-home data/dsh-isolated-home data/workspace
 	docker compose up --remove-orphans --detach $(SERVICE)
 
 down:

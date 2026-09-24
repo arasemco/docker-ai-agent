@@ -12,8 +12,8 @@
 // dsh does, and requires a 200 for `/`. A pass therefore proves the server is
 // up, its credentials store loads, and its browser auth accepts a valid session.
 //
-// Runs as root (the container's user, see the Dockerfile's no-USER note), so
-// it can read the dsh-owned 0600 credentials file. Parses YAML with the same
+// Runs as the container's user, dsh (see the Dockerfile's USER), which owns
+// the 0600 credentials file. Parses YAML with the same
 // `yaml` package dsh's own credentials-local plugin resolves, rather than a
 // hand-rolled parser.
 // =============================================================================
@@ -23,7 +23,9 @@ import { request } from 'node:http'
 import { createRequire } from 'node:module'
 import { join } from 'node:path'
 
-const { parse } = createRequire('/app/packages/credentials/credentials-local/package.json')('yaml')
+const { parse } = createRequire(
+  '/usr/local/lib/node_modules/@deepseek-ai/dsh/node_modules/@deepseek-ai/dsh-credentials-local/package.json',
+)('yaml')
 
 const fail = (message) => {
   console.error(`healthcheck: ${message}`)

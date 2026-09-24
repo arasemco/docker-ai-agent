@@ -6,13 +6,11 @@
 [![Debian base](https://img.shields.io/badge/base-debian%20bookworm--slim-A81D33?logo=debian)](https://www.debian.org)
 
 A container image for [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness)
-(`dsh`), built from source. **Upstream ships no Docker support** — no
-Dockerfile, `docker-compose.yml`, or `docker-bake.hcl` exist anywhere in that
-repo as of this writing — so this builds it the same way the upstream README
-tells a human to: `pnpm install && pnpm run build && pnpm dsh web`. The
-Dockerfile fetches the source itself via `ADD <git url>#<ref>` (BuildKit's
-native git source), so there's no local checkout to manage — `docker buildx
-bake` alone produces the image.
+(`dsh`). Upstream publishes the CLI to npm as
+[`@deepseek-ai/dsh`](https://www.npmjs.com/package/@deepseek-ai/dsh) (its
+README runs it with `npx @deepseek-ai/dsh web`) but ships no container
+image; this image installs that package at a pinned version, and
+`docker buildx bake` alone produces it.
 
 ## Important: this is loopback-only by design, not a bug
 
@@ -47,7 +45,7 @@ docker compose up dsh
 Open `http://localhost:3080`, then **Settings → Models** to add a
 [DeepSeek API key](https://platform.deepseek.com/) — same first-run steps as
 the [upstream Web UI guide](https://github.com/deepseek-ai/deepseek-harness/blob/main/docs/user/guide/index.md).
-`./data/workspace` (bind-mounted to `/workspace`) is what you pick as the
+`./data/workspace` (bind-mounted to `/home/dsh/workspace`) is what you pick as the
 "workspace" inside the UI; `./data/dsh-home` persists your API key, profiles,
 and session history across container recreation.
 
@@ -76,66 +74,68 @@ For Ollama's OpenAI-compatible endpoint:
 - **Models**: use **Fetch available models** to query Ollama's `/v1/models`
   directly, or add pulled model names (`ollama pull <name>`) by hand.
 
-## How the source gets in
+## How dsh gets in
 
-`dsh/Dockerfile`'s `deps` stage does:
+`dsh/Dockerfile` runs
 
 ```dockerfile
-ADD "https://github.com/deepseek-ai/deepseek-harness.git#${DSH_GIT_REF}" .
+npm install --global "@deepseek-ai/dsh@${DSH_VERSION}"
 ```
 
-instead of a `COPY . .` against a local checkout — BuildKit clones the repo
-at build time, at whatever `DSH_GIT_REF` names (tag, branch, or commit SHA;
-default is a pinned release tag, see `docker-bake.hcl`'s `DSH_GIT_REF`
-variable). No local clone, `.dockerignore`, or build-context management
-needed; the build context is just `dsh/` (the Dockerfile and
-`entrypoint.sh`). Build against a different ref with:
+which is the same package `npx @deepseek-ai/dsh` would fetch, installed once at
+build time instead of on every container start, so the version is pinned and
+the container boots without registry access. `DSH_VERSION` (in
+`docker-bake.hcl`) is an exact npm version; build a different one with:
 
 ```bash
-DSH_GIT_REF=dsh-v0.1.2-alpha.5 bash bake.sh
+DSH_VERSION=0.1.7-rc.1 bash bake.sh
 ```
 
-Pin to a tag or commit for reproducible builds — upstream itself warns
-"THERE WILL BE COMPATIBILITY-BREAKING CHANGES" on `main`.
+Pin exact versions rather than dist-tags — upstream warns "THERE WILL BE
+COMPATIBILITY-BREAKING CHANGES". The minimum is `0.1.5-rc.3`: the npm build
+of `0.1.2-rc.1` crashes on `dsh web` ("user patch-layer watching requires the
+Cordis HMR service").
 
 ## What the image does
 
-- **Multi-stage build**: `deps` (`ADD` the source, then a full pnpm
-  workspace install) → `build` (`pnpm run build` — `tsc`/`tsdown` across
-  every package plus the web frontend) → `runtime` (the built tree only).
-  No `tini` baked into the image — see "Security notes" below for how
-  subprocess reaping is handled instead. The container starts as root and
-  `entrypoint.sh` drops to an unprivileged `dsh` user before running
-  anything — see "Security notes" for why root is needed first.
-- **Debian (glibc), not Alpine — required, found the hard way**:
-  `vendor/loader` resolves plugin packages at runtime through
-  `node-addon-require-builtin`, a native addon that only ships glibc
-  prebuilt binaries (`-linux-x64-gnu`/`-linux-arm64-gnu` in
-  `pnpm-lock.yaml`, no `-musl` variant). On Alpine that addon silently has
-  nothing to install, plugin resolution falls back to a plain `import()`
-  that can't see pnpm's per-package `node_modules`, and the whole plugin
-  tree fails to boot ("Cannot find package '@deepseek-ai/cordis-plugin-timer'").
-  `native/landlock-run` does not push the other way — it's statically
-  linked against musl, which makes it libc-agnostic at runtime (a static
-  musl binary runs fine on a glibc host); it's the deciding constraint here,
-  not a competing one.
-- **`node-pty`** (a real workspace dependency, listed under `allowBuilds` in
-  upstream's `pnpm-workspace.yaml`) needs a native build; the `deps` stage
-  installs `python3 make g++` for it (Debian's node image already carries
-  `libc6-dev`, unlike Alpine where a separate `linux-headers` package was
-  needed).
-- **No pruning**: the runtime stage ships the full built `/app` tree. The
-  workspace's `workspace:^` links make a partial prune (e.g. `pnpm deploy`)
-  unsafe without upstream declaring `"deploy"` config for it, which it
-  currently doesn't — simple and correct over small.
+- **Unprivileged user**: `DSH_USER`/`DSH_UID`/`DSH_GID` build args
+  (default `dsh`, 1000:1000; relabels the base image's `node` user). Root is
+  used only for package installation and user creation, then `USER dsh`
+  with `WORKDIR ~/workspace`.
+- **Dev tooling** for the shell commands the agent runs: `bash git gh jq
+  procps nano shellcheck gnupg uv`, Python 3 (`python3`, `pip`, `venv`),
+  plus node/npm from the base. dsh itself is a global npm install; no
+  compiler toolchain is needed. No `tini` baked in — see "Security notes".
+- **Rootless Docker**: Docker Engine (`DOCKER_VERSION`, default `29.8.1`,
+  with the buildx and compose plugins) runs inside the container as `dsh`
+  under rootlesskit. `docker-entrypoint.sh` starts it before dsh, with the
+  `fuse-overlayfs` storage driver; `DOCKER_HOST` points at
+  `~/.docker/run/docker.sock` and the daemon log is
+  `~/.docker/dockerd.log`. It needs the container to run with
+  `seccomp:unconfined`, `systempaths=unconfined`, `/dev/fuse` and
+  `/dev/net/tun` (set in `docker-compose.yml`); without them the daemon
+  exits, a warning is logged, and dsh starts anyway. Rootless Docker
+  cannot run when the outer Docker is itself rootless (`newuidmap: write to
+  uid_map failed: Operation not permitted`).
+- **Debian (glibc) base — required**: dsh's plugin loader goes through
+  `node-addon-require-builtin`, a native addon that publishes only glibc
+  prebuilt binaries (`-linux-x64-gnu`/`-linux-arm64-gnu`, no `-musl`
+  variant). On a musl base such as Alpine, `dsh web` dies at boot with
+  "--expose-internals is required for HMR service".
+- **Healthcheck**: `GET /` answers 401 until a browser signs in through the
+  `?token=` URL dsh prints, so a plain curl can't pass. `dsh/healthcheck.mjs`
+  loads dsh's stored session-signing secret from
+  `$DSH_HOME/.credentials.yaml`, signs a short-lived cookie with it, and
+  requires a 200.
 - **`DSH_HOME`** (`/home/dsh/.dsh` — profiles, credentials, sessions) and
-  **`/workspace`** (the project directory `dsh` operates on) are both
-  declared volumes; `docker-compose.yml` binds them to `./data/dsh-home` and
+  **`DSH_WORKSPACE`** (`/home/dsh/workspace`, the project directory `dsh`
+  operates on) are created in the image owned by `dsh`;
+  `docker-compose.yml` binds them to `./data/dsh-home` and
   `./data/workspace`.
 
 ## Runtime configuration
 
-`entrypoint.sh` reads these (all optional) and translates them into `dsh
+`docker-entrypoint.sh` reads these (all optional) and translates them into `dsh
 web` flags — see that file's header comment for the authoritative list:
 
 | Variable | Default | Description |
@@ -144,13 +144,15 @@ web` flags — see that file's header comment for the authoritative list:
 | `DSH_HOST` | *(unset → loopback)* | `--host`; **refused if `"0.0.0.0"`** — see above |
 | `DSH_TRUSTED_HOSTS` | *(unset)* | space-separated `--trusted-host` values (extra `/api` browser-trust authorities) |
 | `DSH_HOME` | `/home/dsh/.dsh` (image `ENV`, don't override lightly) | profiles/credentials/sessions root |
-| `DSH_WORKSPACE` | `/workspace` (image `ENV`) | directory `dsh` treats as its workspace root |
+| `DSH_WORKSPACE` | `/home/dsh/workspace` (image `ENV`) | directory `dsh` treats as its workspace root |
+| `DSH_DOCKERD` | `1` | `0` skips starting the rootless Docker daemon |
 
-Any other `dsh` entry mode still works by overriding the container command —
-`entrypoint.sh` only rewrites argv when it's `web`:
+Any other `dsh` entry mode still works: the container command is passed to
+`dsh` as its arguments, and `docker-entrypoint.sh` only rewrites them when
+it's `web`:
 
 ```bash
-docker run --rm -it --init ghcr.io/arasemco/dsh:latest dsh --profile headless "run the tests"
+docker run --rm -it --init ghcr.io/arasemco/dsh:latest --profile headless "run the tests"
 ```
 
 (See upstream `apps/cli/README.md#entry-modes` for the full list —
@@ -173,10 +175,9 @@ bake -f docker-bake.hcl` — used only for the OCI revision/ref.name labels.
 
 ### Bumping the base image
 
-The Node base is pinned by digest, not just tag. Both `dsh/Dockerfile`'s
-`NODE_REF` default and `docker-bake.hcl`'s `NODE_BASE.digest` currently
-carry a **placeholder digest** — this was written without registry network
-access. Resolve the real one before your first build:
+The Node base is pinned by digest, not just tag, in two places that must
+agree: `dsh/Dockerfile`'s `NODE_REF` default and `docker-bake.hcl`'s
+`NODE_BASE.digest`. Resolve a new digest with:
 
 ```bash
 docker pull node:22-bookworm-slim --platform linux/amd64
@@ -189,20 +190,33 @@ keep it a Debian/glibc tag, not Alpine (see "What the image does" above).
 
 ### Bumping dsh itself
 
-Update `DSH_GIT_REF` in `docker-bake.hcl` to the tag/commit you want to
-build. `PNPM_VERSION` must match the `"packageManager"` field in that ref's
-root `package.json` (`pnpm@11.7.0` as of `dsh-v0.1.1-rc.2`) — mismatches
-will fail `corepack prepare`. `DSH_VERSION` is a label/tag suffix only;
-keep it in sync with `DSH_GIT_REF`.
+Set `DSH_VERSION` in `docker-bake.hcl` (and the Dockerfile's `ARG`
+default) to an exact version from `npm view @deepseek-ai/dsh versions`. It
+is both what gets installed and the image tag.
+
+### Testing the API key
+
+```bash
+make test
+```
+
+builds the Dockerfile's `test` stage (never pushed). It mounts dsh's
+`.credentials.yaml` as a BuildKit secret, checks `refs.DEEPSEEK_API_KEY`
+against `https://api.deepseek.com/models`, then runs a one-line
+`dsh --profile headless` task that has to load the key from that file. The
+file comes from `$DSH_CREDENTIALS`, else `./data/dsh-home/.credentials.yaml`,
+else a temporary copy out of the `$DSH_VOLUME` volume (default
+`deepseek-harness_dsh_home`).
 
 ## Layout
 
 ```
 .
 ├── dsh/
-│   ├── Dockerfile       # deps (ADD source + install) / build / runtime stages
-│   └── entrypoint.sh    # translates DSH_* env vars into `dsh web` flags, execs dsh
-├── docker-bake.hcl       # build definition (target, labels, base pin, DSH_GIT_REF)
+│   ├── Dockerfile       # runtime (npm install) / test (API key check) stages
+│   ├── docker-entrypoint.sh  # checks mounts, starts rootless dockerd, maps DSH_* env vars to `dsh web` flags, execs dsh
+│   └── healthcheck.mjs  # signed-session-cookie HEALTHCHECK
+├── docker-bake.hcl       # build definition (dsh + test targets, labels, base pin, DSH_VERSION)
 ├── bake.sh               # wraps buildx bake, injects GIT_SHA/GIT_REF
 ├── docker-compose.yml     # host-networked "dsh" service + an isolated variant for CI smoke tests
 ├── .github/workflows/
@@ -214,15 +228,23 @@ keep it in sync with `DSH_GIT_REF`.
 
 ## Security notes
 
-- The container **starts as root**, but `dsh` itself never runs as root:
-  `entrypoint.sh` chowns `DSH_HOME`/`DSH_WORKSPACE` (bind-mounted host
-  directories that Docker may have auto-created as root, which an
-  unprivileged process can't fix on its own) then drops to a dedicated
-  `dsh` system user via `setpriv` before exec'ing anything — least
-  privilege from that point on, per upstream `SAFETY.md` (developer-preview
-  software that executes model-generated commands). If you don't trust
-  entrypoint.sh's chown step, mount already-`dsh`-owned directories instead
-  and it's a no-op beyond re-asserting ownership.
+- The container **never runs as root**: the image's `USER` is `dsh`
+  (uid:gid 1000:1000, configurable with the `DSH_USER`/`DSH_UID`/`DSH_GID`
+  build args), so the entrypoint, `dsh`, the healthcheck, and `docker exec`
+  all run unprivileged — least privilege per upstream `SAFETY.md`
+  (developer-preview software that executes model-generated commands).
+  Root is only used at build time. Named volumes inherit `dsh` ownership
+  from the image; bind-mount directories must exist and be owned by
+  1000:1000 before the first start (`make up` creates them), since Docker
+  creates missing ones as root. `docker-entrypoint.sh` stops with the exact
+  `chown` fix if they aren't writable.
+- The in-container Docker daemon needs `seccomp:unconfined` and
+  `systempaths=unconfined`, which widen what processes in the container
+  (including model-generated commands) can reach in the kernel. The daemon
+  itself stays unprivileged: it runs as `dsh` inside a user namespace, and
+  containers it starts map to `dsh`'s subordinate uid range
+  (`100000:65536`), not to host root. Leave those options off (and set
+  `DSH_DOCKERD=0`) when the agent doesn't need Docker.
 - Loopback-only by design; see the section above. Don't add a
   `0.0.0.0`-listening proxy in front of this image.
 - `docker-compose.yml` sets `init: true` on both services, so Docker's own

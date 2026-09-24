@@ -35,18 +35,14 @@ variable "PROVENANCE_METADATA" {
 // "22-bookworm-slim") can be repointed upstream at any time, so pinning here
 // guarantees every build starts from the exact same layer.
 //
-// Debian ("bookworm-slim"), not Alpine — required, not a style choice. See
-// dsh/Dockerfile's base-image comment: node-addon-require-builtin (used by
-// vendor/loader to resolve plugin packages at runtime) only ships glibc
-// prebuilt binaries; without them the whole plugin tree fails to boot.
-// native/landlock-run doesn't push the other way — it's statically linked
-// against musl, so it runs fine on a glibc host too.
+// Must be a glibc base such as Debian "bookworm-slim": dsh's plugin loader
+// needs node-addon-require-builtin, which publishes only glibc prebuilt
+// binaries (see dsh/Dockerfile's base-image comment).
 //
-// NOTE: the digest below is a PLACEHOLDER — written without registry
-// network access. Resolve the real one before building:
+// To bump, resolve the new digest and set it here and in dsh/Dockerfile's
+// NODE_REF default (the two must agree):
 //   docker pull node:22-bookworm-slim --platform linux/amd64
 //   docker inspect --format='{{index .RepoDigests 0}}' node:22-bookworm-slim
-// and paste the sha256:... value in here (and in dsh/Dockerfile's default).
 //
 // Must satisfy upstream's package.json engines constraint:
 // "node": "^22.19.0 || >=24.0.0" — don't drop below 22.19 on a retag.
@@ -60,46 +56,32 @@ variable "NODE_BASE" {
 
 // Turns a base map into the full "name:tag@digest" string a Dockerfile's
 // FROM instruction accepts.
-// To bump the base image: update its digest here (docker pull <name>:<tag>
-// --platform linux/amd64 and copy the resulting digest), not just its tag.
 function "pinned_ref" {
   params = [base]
   result = "${base.name}:${base.tag}@${base.digest}"
 }
 
-// Pinned package-manager version, passed to the Dockerfile as a build arg.
-// Must match the "packageManager" field in upstream's root package.json —
-// check that file when bumping dsh versions.
-variable "PNPM_VERSION" { default = "11.7.0" }
+// Exact @deepseek-ai/dsh version the Dockerfile installs from npm, also used
+// as the image tag and OCI version label. List published versions with
+// `npm view @deepseek-ai/dsh versions`. Pin an exact version, not a
+// dist-tag; upstream warns "THERE WILL BE COMPATIBILITY-BREAKING CHANGES".
+variable "DSH_VERSION" { default = "0.1.5-rc.3" }
 
-// Git tag, branch, or commit SHA to build — fetched directly inside the
-// Dockerfile via `ADD https://github.com/deepseek-ai/deepseek-harness.git#${DSH_GIT_REF}`
-// (BuildKit's native git source, no local checkout needed). Pin to a tag or
-// commit for reproducible builds; upstream warns "THERE WILL BE
-// COMPATIBILITY-BREAKING CHANGES" on main, so avoid tracking a branch
-// outside local experimentation.
-variable "DSH_GIT_REF" { default = "dsh-v0.1.2-rc.1" }
-
-// Version label for the image tag — track the upstream package.json
-// "version" field (root package.json / apps/cli/package.json) you built
-// against. Not auto-detected: HCL can't read files outside the build
-// context here, and this varies independently of GIT_SHA (this repo's own
-// history) vs. the upstream commit actually vendored into the build.
-variable "DSH_VERSION" { default = "0.1.2-rc.1" }
+// Docker Engine version for the image's rootless daemon (docker-ce,
+// docker-ce-cli, docker-ce-rootless-extras from Docker's Debian repo).
+variable "DOCKER_VERSION" { default = "29.8.1" }
 
 // Default to "unknown" rather than empty string — a bare build outside of
 // bake.sh (or before the first commit) can't know these, and "unknown" is
 // unambiguous in the resulting image.revision/ref.name labels. Set normally
-// by bake.sh via `git rev-parse HEAD` / `git symbolic-ref --short HEAD`.
+// by bake.sh via `git rev-parse HEAD` / `git rev-parse --abbrev-ref HEAD`.
 variable "GIT_SHA" { default = "unknown" }
 variable "GIT_REF" { default = "unknown" }
 
 // Comma-separated string, not an HCL list — env vars are always strings,
 // so this can be overridden with PLATFORMS=linux/amd64,linux/arm64 without
 // touching the file. split(",", PLATFORMS) below turns it into the list
-// `platforms` actually needs. native/landlock-run publishes both
-// linux-x64 and linux-arm64 prebuilt launchers, so both platforms are
-// expected to work — arm64 just isn't the default here.
+// `platforms` actually needs.
 variable "PLATFORMS" { default = "linux/amd64" }
 
 
@@ -151,10 +133,8 @@ group "default" {
 }
 
 // DeepSeek Harness Web UI image. Build context is just this repo's own
-// "dsh" directory (Dockerfile + entrypoint.sh) — no local checkout of
-// deepseek-harness needed. The Dockerfile fetches the source itself via
-// `ADD https://github.com/deepseek-ai/deepseek-harness.git#${DSH_GIT_REF}`
-// (BuildKit's native git source).
+// "dsh" directory (Dockerfile, docker-entrypoint.sh, healthcheck.mjs). The
+// Dockerfile installs @deepseek-ai/dsh@${DSH_VERSION} from npm.
 target "dsh" {
   context    = "dsh"
   dockerfile = "Dockerfile"
@@ -164,9 +144,9 @@ target "dsh" {
   pull       = true
 
   args = {
-    NODE_REF     = pinned_ref(NODE_BASE)
-    PNPM_VERSION = PNPM_VERSION
-    DSH_GIT_REF  = DSH_GIT_REF
+    NODE_REF       = pinned_ref(NODE_BASE)
+    DSH_VERSION    = DSH_VERSION
+    DOCKER_VERSION = DOCKER_VERSION
   }
 
   tags = [
@@ -178,7 +158,7 @@ target "dsh" {
     DSH_LABELS,
     oci_labels(
       "dsh",
-      "DeepSeek Harness (dsh) Web UI, built from source; loopback-only by design (see SAFETY.md)",
+      "DeepSeek Harness (dsh) Web UI, installed from npm; loopback-only by design (see SAFETY.md)",
       DSH_VERSION,
       NODE_BASE,
     )
@@ -189,9 +169,9 @@ target "dsh" {
 
 // Where the "test" target reads dsh's credentials file (see dsh/Dockerfile's
 // "test" stage). Defaults to the key this repo's own docker-compose.yml
-// persists (./data/dsh-home → /home/dsh/.dsh). `make test` falls back to
-// copying it out of a deployed stack's dsh_home volume when this file is
-// missing.
+// persists (./data/dsh-home → /home/dsh/.dsh). When this file is missing,
+// `make test` copies it out of a deployed container's DSH_HOME volume
+// ($DSH_VOLUME) instead.
 variable "DSH_CREDENTIALS" { default = "data/dsh-home/.credentials.yaml" }
 
 // Builds the runtime image plus the "test" stage, which loads the DeepSeek

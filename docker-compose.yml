@@ -34,7 +34,7 @@
 # is a reproducible build, not a way to publish the UI more widely than
 # upstream intends it to be.
 #
-# All DSH_* runtime vars are read by entrypoint.sh — see that file's header
+# All DSH_* runtime vars are read by docker-entrypoint.sh — see that file's header
 # comment for the full reference.
 
 services:
@@ -43,28 +43,45 @@ services:
     hostname: dsh
     #restart: unless-stopped
     network_mode: host
-    # The image ships no init process of its own (see dsh/Dockerfile's last
-    # comment) — dsh spawns subprocesses for tool calls that need PID 1 to
-    # reap them and forward signals on `docker stop`. init: true asks Docker
-    # to inject its own built-in tini at the container-runtime level instead.
+    # The image ships no init process of its own. dsh spawns subprocesses
+    # for tool calls that need PID 1 to reap them and forward signals on
+    # `docker stop`; init: true makes Docker inject its built-in tini.
     init: true
     environment:
       DSH_PORT: "3080"
       # DSH_HOST: left unset on purpose — see the note above. Setting it to
-      # "0.0.0.0" is refused by both dsh itself and entrypoint.sh.
+      # "0.0.0.0" is refused by both dsh itself and docker-entrypoint.sh.
       # DSH_TRUSTED_HOSTS: "example.internal:3080"
+    # The container runs as uid:gid 1000:1000, never root, so these host
+    # directories must exist and be owned by 1000:1000 before the first
+    # start (`make up` creates them); Docker would create missing ones as root.
     volumes:
       # Profiles, credentials (the DeepSeek API key entered via Settings →
       # Models), and session history — persists across container recreation.
       - ./data/dsh-home:/home/dsh/.dsh
       # The project directory dsh operates on. Point this at whatever
       # you'd otherwise `cd` into before running `dsh web` on the host.
-      - ./data/workspace:/workspace
+      - ./data/workspace:/home/dsh/workspace
+      # Images, containers and build cache of the in-container rootless
+      # Docker daemon. A named volume (not a bind mount): it inherits dsh
+      # ownership from the image and holds files owned by subordinate uids.
+      - dsh-docker:/home/dsh/.local/share/docker
+    # Required by the rootless Docker daemon docker-entrypoint.sh starts:
+    # rootlesskit creates user/mount namespaces (blocked by the default
+    # seccomp profile and masked /proc paths), fuse-overlayfs needs
+    # /dev/fuse, and slirp4netns needs /dev/net/tun. Without them dsh still
+    # runs, only `docker` inside the container is unavailable.
+    security_opt:
+      - seccomp:unconfined
+      - systempaths=unconfined
+    devices:
+      - /dev/fuse
+      - /dev/net/tun
 
   # Same image, no host networking — useful for CI smoke tests or anywhere
   # you only need the process to start and pass its HEALTHCHECK, not to be
   # reachable from outside the container. `docker compose exec dsh-isolated
-  # curl -sf http://127.0.0.1:3080/` still works from inside the container.
+  # node /usr/local/lib/dsh-healthcheck.mjs` runs the same check by hand.
   dsh-isolated:
     image: ghcr.io/arasemco/dsh:latest
     hostname: dsh-isolated
@@ -73,6 +90,13 @@ services:
     init: true
     environment:
       DSH_PORT: "3080"
+      # Runs with the default seccomp profile and no devices, so the
+      # rootless Docker daemon can't start here; skip it.
+      DSH_DOCKERD: "0"
     volumes:
+      # Same 1000:1000 ownership requirement as the dsh service above.
       - ./data/dsh-isolated-home:/home/dsh/.dsh
-      - ./data/workspace:/workspace
+      - ./data/workspace:/home/dsh/workspace
+
+volumes:
+  dsh-docker:
