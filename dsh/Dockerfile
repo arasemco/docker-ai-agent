@@ -60,12 +60,15 @@ RUN existing_group="$(getent group "${DSH_GID}" | cut -d: -f1)" \
         useradd --uid "${DSH_UID}" --gid "${DSH_GID}" --create-home --shell /bin/bash "${DSH_USER}"; \
     fi
 
-# DSH_HOME (~/.dsh), the workspace, and the rootless Docker data root
-# (~/.local/share/docker) are created here, owned by DSH_USER: Docker copies
-# that ownership into a named volume on first mount, and the container has
-# no root step left to fix it at runtime.
+# DSH_HOME (~/.dsh), the workspace, the rootless Docker data root
+# (~/.local/share/docker), ~/.ssh and ~/.config (git identity/credentials,
+# gh auth) are created here, owned by DSH_USER: Docker copies that
+# ownership into a named volume on first mount, and the container has no
+# root step left to fix it at runtime.
 RUN mkdir -p "/home/${DSH_USER}/.dsh" "/home/${DSH_USER}/workspace" \
         "/home/${DSH_USER}/.local/share/docker" "/home/${DSH_USER}/.docker" \
+        "/home/${DSH_USER}/.ssh" "/home/${DSH_USER}/.config" \
+    && chmod 700 "/home/${DSH_USER}/.ssh" \
     && chown -R "${DSH_UID}:${DSH_GID}" "/home/${DSH_USER}"
 
 # newuidmap/newgidmap look up subordinate ranges by user name; rootlesskit
@@ -97,6 +100,11 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # helpers it needs — uidmap (newuidmap/newgidmap), slirp4netns (user-mode
 # networking), fuse-overlayfs (storage driver that works on top of the
 # container's own overlay root), iptables and iproute2.
+#
+# Debian ships newuidmap/newgidmap setuid root, and in that mode their
+# write to /proc/<pid>/uid_map is refused with EPERM inside a container,
+# so rootlesskit can't set up its user namespace. Replace the setuid bit
+# with just the capability each one needs (as Alpine's shadow-uidmap does).
 RUN install -m 0755 -d /etc/apt/keyrings \
     && curl -fsSL https://download.docker.com/linux/debian/gpg -o /etc/apt/keyrings/docker.asc \
     && echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/debian $(. /etc/os-release && echo "${VERSION_CODENAME}") stable" \
@@ -115,7 +123,11 @@ RUN install -m 0755 -d /etc/apt/keyrings \
         fuse-overlayfs \
         iptables \
         iproute2 \
-    && rm -rf /var/lib/apt/lists/*
+        libcap2-bin \
+    && rm -rf /var/lib/apt/lists/* \
+    && chmod u-s /usr/bin/newuidmap /usr/bin/newgidmap \
+    && setcap cap_setuid=ep /usr/bin/newuidmap \
+    && setcap cap_setgid=ep /usr/bin/newgidmap
 
 ENV UV_INSTALL_DIR=/usr/local/bin
 RUN curl -fsSL https://astral.sh/uv/install.sh | sh

@@ -114,9 +114,10 @@ Cordis HMR service").
   `~/.docker/dockerd.log`. It needs the container to run with
   `seccomp:unconfined`, `systempaths=unconfined`, `/dev/fuse` and
   `/dev/net/tun` (set in `docker-compose.yml`); without them the daemon
-  exits, a warning is logged, and dsh starts anyway. Rootless Docker
-  cannot run when the outer Docker is itself rootless (`newuidmap: write to
-  uid_map failed: Operation not permitted`).
+  exits, a warning is logged, and dsh starts anyway. Debian's setuid
+  `newuidmap`/`newgidmap` are replaced with `cap_setuid`/`cap_setgid` file
+  capabilities; setuid, their write to `uid_map` fails with "Operation not
+  permitted" inside a container.
 - **Debian (glibc) base — required**: dsh's plugin loader goes through
   `node-addon-require-builtin`, a native addon that publishes only glibc
   prebuilt binaries (`-linux-x64-gnu`/`-linux-arm64-gnu`, no `-musl`
