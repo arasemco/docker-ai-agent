@@ -16,7 +16,7 @@ services:
     tty: true
     restart: no
     ports:
-      - "4096:4096"
+      - "${OPENCODE_PORT:-4096}:${OPENCODE_PORT:-4096}"
     runtime: runc
     environment:
       # Protect your Web UI with a password
