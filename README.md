@@ -10,7 +10,7 @@ cp .env.example .env
 docker compose up -d --build
 ```
 
-Open http://localhost:${OPENCODE_PORT:-4096}.
+Open http://localhost:4096 (or the port set via `OPENCODE_PORT`).
 
 ## Configuration
 
