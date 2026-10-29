@@ -28,6 +28,15 @@ services:
       # Local Ollama server (see opencode.jsonc)
       - OLLAMA_BASE_URL=${OLLAMA_BASE_URL:-http://192.168.1.48:11434/v1}
       - OLLAMA_API_KEY=${OLLAMA_API_KEY:-ollama}
+      # Route all outbound traffic through the Squid proxy
+      - HTTP_PROXY=${HTTP_PROXY:-http://192.168.1.48:3128}
+      - HTTPS_PROXY=${HTTPS_PROXY:-http://192.168.1.48:3128}
+      - ALL_PROXY=${ALL_PROXY:-http://192.168.1.48:3128}
+      - NO_PROXY=${NO_PROXY:-localhost,127.0.0.1,::1,192.168.1.48}
+      - http_proxy=${http_proxy:-http://192.168.1.48:3128}
+      - https_proxy=${https_proxy:-http://192.168.1.48:3128}
+      - all_proxy=${all_proxy:-http://192.168.1.48:3128}
+      - no_proxy=${no_proxy:-localhost,127.0.0.1,::1,192.168.1.48}
     volumes:
       # Persistent OpenCode state. These default to Docker-managed volumes so
       # the directories are created with the right owner; point the *_HOST
