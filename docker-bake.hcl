@@ -15,7 +15,7 @@ variable "OPENCODE_GID" {
 }
 
 variable "OPENCODE_VERSION" {
-  default = ""
+  default = "1.19.5"
 }
 
 variable "DOCKER_VERSION" {
