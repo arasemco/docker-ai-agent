@@ -82,6 +82,11 @@ WITH=daemon,limits,mounts make up         # + limits + host mount
 ./scripts/compose.sh --with daemon,proxy -- up -d    # same, without make
 ```
 
+`docker-compose.yml` on its own is a valid stack (plain `docker compose up`
+works), but it then has no fragment grants: the UI runs fine while the inner
+Docker daemon cannot start. Use `make` / `scripts/compose.sh` (or merge the
+fragments yourself with `-f`) when you want `docker` inside the container.
+
 ## Overrides (keep your machine out of git)
 
 | File (gitignored) | Start from | Holds |
