@@ -28,11 +28,11 @@ the LAN, and set a real password first.
 | base image (Debian, apt Node/npm, agent user, dockerd, toolchain) | `AGENT_BASE` build arg, default `agent-base:1.0.0` |
 | OpenCode itself | `npm install -g opencode-ai@${OPENCODE_VERSION}` in the Dockerfile |
 | sandbox settings (devices, seccomp, limits, proxy, Projects mount) | `../agent-base/compose.base.yml` via `extends` |
-| entrypoint / healthcheck | `agent-entrypoint` and `agent-healthcheck` from the base |
+| entrypoint / services / healthcheck | `agent-entrypoint` (stashes CMD, execs s6 `/init`), the `dockerd` + `agent` services and `agent-healthcheck` from the base |
 | provider config | `opencode.jsonc`, seeded into the config volume on first run |
 
-The container runs as `agent` (uid 1000), so all state lives under
-`/home/agent`:
+The agent CLI and the Docker daemon both run as `agent` (uid 1000), so all
+state lives under `/home/agent`:
 
 - `/home/agent/.config/opencode` — providers/models (volume `opencode-config`)
 - `/home/agent/.local/share/opencode` — `auth.json`, session DB, snapshots (`opencode-data`)
@@ -76,3 +76,6 @@ docker compose up -d --build
 - `opencode --version` is checked at build time and by the base healthcheck
   (`AGENT_CMD` alive); the image does not probe the HTTP port, because a
   password-protected UI answers 401 to a bare request.
+- `docker exec` into this container lands as **root** (s6-overlay's PID 1); the
+  CLI itself runs as `agent`. Use `docker compose exec --user 1000 opencode bash`
+  for a shell with the agent's identity and environment.

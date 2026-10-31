@@ -16,7 +16,7 @@ variable "TAG"        { default = "latest" }
 
 // The shared base image, by tag (agent-base also publishes :latest; pin the
 // version so a rebuild cannot silently pick up a new base).
-variable "AGENT_BASE" { default = "git.omesa.net/asemo/agent-base:1.0.0" }
+variable "AGENT_BASE" { default = "git.omesa.net/asemo/agent-base:1.1.0" }
 
 // Exact opencode-ai version from npm (`npm view opencode-ai versions`).
 variable "OPENCODE_VERSION" { default = "1.19.5" }

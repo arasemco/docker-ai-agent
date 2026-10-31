@@ -18,7 +18,7 @@
 
 # Pinned to a registry tag, not :latest, so a rebuild is reproducible. Bump
 # deliberately (and retest) when agent-base changes.
-ARG AGENT_BASE=git.omesa.net/asemo/agent-base:1.0.0
+ARG AGENT_BASE=git.omesa.net/asemo/agent-base:1.1.0
 FROM ${AGENT_BASE}
 
 # Exact opencode-ai version (`npm view opencode-ai versions`); a dist-tag
@@ -53,9 +53,9 @@ RUN install -d -o 1000 -g 1000 \
 # intended: config is editable state, not an immutable default.
 COPY --chown=1000:1000 opencode.jsonc /home/agent/.config/opencode/opencode.jsonc
 
-# Back to the agent user: the CLI, the entrypoint's daemon and `docker exec`
-# default to this account (see agent-base's Dockerfile).
-USER 1000:1000
+# NOTE: no `USER` switch here. s6-overlay's /init is PID 1 as root and drops
+# to the agent user per service (services.d/agent/run and services.d/dockerd/run
+# in agent-base), so the image must stay root at this point.
 
 # The base entrypoint runs "$AGENT_CMD $@" for every command, so the compose
 # `command:` supplies the subcommand and flags.
