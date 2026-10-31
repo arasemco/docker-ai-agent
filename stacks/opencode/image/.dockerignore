@@ -1,0 +1,7 @@
+# The build context is image/ only (the Dockerfile). Everything else in this
+# repo is host tooling.
+.git
+.gitignore
+.dockerignore
+.idea
+*.log
