@@ -31,7 +31,6 @@ variable "AGENT_GID"  { default = "1000" }
 // Pinned tool versions. DOCKER_VERSION is the in-container rootless engine;
 // list candidates with `apt-cache madison docker-ce` inside the base image.
 variable "DOCKER_VERSION" { default = "29.8.1" }
-variable "YQ_VERSION"     { default = "4.54.1" }
 variable "UV_VERSION"     { default = "0.13.6" }
 
 // Frozen build inputs, pinned by digest where possible: a floating tag can be
@@ -105,7 +104,6 @@ target "agent-base" {
     AGENT_UID      = AGENT_UID
     AGENT_GID      = AGENT_GID
     DOCKER_VERSION = DOCKER_VERSION
-    YQ_VERSION     = YQ_VERSION
     UV_VERSION     = UV_VERSION
   }
 

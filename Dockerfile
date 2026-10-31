@@ -46,9 +46,7 @@ ARG AGENT_GID=1000
 # Debian repo (`apt-cache madison docker-ce`).
 ARG DOCKER_VERSION=29.8.1
 
-# mikefarah/yq v4 (Debian's `yq` package is the older Python/jq wrapper with
-# different syntax) and uv (Python toolchain), both pinned releases.
-ARG YQ_VERSION=4.54.1
+# uv (Python toolchain), installed from a pinned release.
 ARG UV_VERSION=0.13.6
 
 USER root
@@ -94,12 +92,21 @@ RUN grep -q "^${AGENT_USER}:" /etc/subuid 2>/dev/null || echo "${AGENT_USER}:100
 
 # Base tooling for the shell commands an agent runs. nodejs/npm come with the
 # base image; curl + ca-certificates also serve HTTPS model calls.
+#
+# yq is the Debian package: kislyuk's 3.x, a jq wrapper (jq syntax, `yq -y` for
+# YAML output). mikefarah's Go yq v4 is not in Debian and would need a GitHub
+# release download, which this image deliberately avoids — everything
+# userland-facing comes from apt. The two yq implementations are not drop-in
+# compatible; anything needing v4 syntax must install it itself. (This build
+# prints `yq --version` as "yq 0.0.0" while dpkg has 3.1.0-3: an upstream
+# packaging quirk, not a broken install.)
 RUN apt-get update && apt-get install -y --no-install-recommends \
         bash \
         ca-certificates \
         curl \
         wget \
         jq \
+        yq \
         rsync \
         git \
         gh \
@@ -161,19 +168,6 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
         iproute2 \
     && rm -rf /var/lib/apt/lists/* \
     && ln -sf /usr/bin/fdfind /usr/local/bin/fd
-
-# mikefarah/yq v4: per-arch static binary; fail the build on an architecture
-# without one instead of shipping an image silently missing yq.
-RUN arch="$(dpkg --print-architecture)"; \
-    case "${arch}" in \
-        amd64) yq_arch=amd64 ;; \
-        arm64) yq_arch=arm64 ;; \
-        *) echo "unsupported architecture for yq: ${arch}" >&2; exit 1 ;; \
-    esac; \
-    curl -fsSL "https://github.com/mikefarah/yq/releases/download/v${YQ_VERSION}/yq_linux_${yq_arch}" \
-        -o /usr/local/bin/yq \
-    && chmod 0755 /usr/local/bin/yq \
-    && yq --version
 
 # uv: pinned installer release rather than the floating install.sh default.
 ENV UV_INSTALL_DIR=/usr/local/bin

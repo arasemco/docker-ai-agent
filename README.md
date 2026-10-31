@@ -14,7 +14,9 @@ What it provides:
 - **A rootless Docker daemon** started by the entrypoint — `docker` works
   inside the container without `--privileged`.
 - **Python 3 + uv, yq, git/gh, a native build toolchain**, the GNU userland and
-  the CLI utilities agents assume are installed.
+  the CLI utilities agents assume are installed. Everything userland-facing
+  comes from `apt`; `yq` is therefore Debian's package (kislyuk's 3.x, a jq
+  wrapper — not mikefarah's v4, which Debian doesn't ship).
 - **A generic entrypoint** with a hook directory, and a healthcheck.
 
 It deliberately contains **no agent CLI**. Each child image installs its own
