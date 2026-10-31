@@ -10,11 +10,14 @@
 #   opencode:<version>  + :latest
 #   dsh:<version>       + :latest
 #
-# Credentials: the built-in job token, `${{ secrets.GITEA_TOKEN }}`, performs the
-# registry login. It needs the `packages: write` permission, which the job asks
-# for below; Gitea clamps it to whatever maximum the owner or repository allows
-# (Settings -> Actions -> General). No personal access token is involved.
-# Read-only workflows (pull requests, and forks especially) never log in.
+# Credentials: a Gitea personal access token in the repository secret GIT_TOKEN,
+# with the "write:package" scope. The built-in job token (GITEA_TOKEN) is not
+# accepted by the container registry: logging in with it returns
+#   Get "https://<host>/v2/": unauthorized
+# even though the token itself is present and valid for the API. The container
+# registry documents a personal access token as the credential to use instead of
+# a password (which is also what accounts with 2FA require). Pull requests never
+# log in, so they need no credential.
 #
 # Cache lives in the registry (<REGISTRY>/agent-base:buildcache), which works on
 # a self-hosted forge; the GitHub-only `type=gha` cache does not exist here.
@@ -38,8 +41,6 @@ concurrency:
 jobs:
   build:
     runs-on: ubuntu-latest
-    # Required for the built-in job token to push to the container registry;
-    # Gitea clamps this to the maximum configured for the owner or repository.
     permissions:
       contents: read
       packages: write
@@ -82,29 +83,29 @@ jobs:
             echo "git_ref=${git_ref}"
           } >> "${GITHUB_OUTPUT}"
 
-      # The job token is injected by Gitea; an empty value means Actions was
-      # started without one (older Gitea, or a runner that does not provide it).
-      - name: Check the job token is available
+      # Fail with an actionable message instead of docker's generic denial.
+      - name: Check registry credentials
         if: github.event_name != 'pull_request'
         env:
-          GITEA_TOKEN: ${{ secrets.GITEA_TOKEN }}
+          GIT_TOKEN: ${{ secrets.GIT_TOKEN }}
         run: |
           set -eu
-          if [ -z "${GITEA_TOKEN}" ]; then
+          if [ -z "${GIT_TOKEN}" ]; then
             printf '%s\n' \
-              "::error::secrets.GITEA_TOKEN is empty. This workflow relies on the built-in Actions job token;" \
-              "check that MFA/runner settings provide it, or fall back to a token secret."
+              "::error::GIT_TOKEN is empty. Create a Gitea access token with the 'write:package' scope" \
+              "as ${GITHUB_REPOSITORY_OWNER} and add it as a repository secret named GIT_TOKEN."
             exit 1
           fi
 
-      # The job token acts as the user who triggered the run.
+      # The token belongs to the repository owner, whose namespace the images
+      # live in; the username must be that account, not the run's actor.
       - name: Log in to the registry
         if: github.event_name != 'pull_request'
         uses: docker/login-action@v3
         with:
           registry: ${{ steps.vars.outputs.registry_host }}
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITEA_TOKEN }}
+          username: ${{ github.repository_owner }}
+          password: ${{ secrets.GIT_TOKEN }}
 
       # The build-time checks: shellcheck on every script and the tool matrix,
       # in the image's "test" stage. Exports nothing.

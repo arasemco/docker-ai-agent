@@ -71,22 +71,27 @@ broken Dockerfile or script fails the check and nothing is published.
 
 ### Registry credentials
 
-No secret is required. Docker login uses the **built-in Actions job token**,
-`${{ secrets.GITEA_TOKEN }}`, which Gitea injects into every job, together with
-the job's `permissions: packages: write` request. The username is the user who
-triggered the run, because that is the identity the job token carries.
+The workflow needs one repository secret:
 
-Two settings can still stand in the way, both under owner or repository
-`Settings -> Actions -> General`:
+| Secret | Contents |
+|---|---|
+| `GIT_TOKEN` | a Gitea access token with the **`write:package`** scope, created by the account that owns the registry namespace |
 
-- **Default permission mode: restricted** makes `packages` read-only for jobs that
-  do not ask for more; this workflow asks, so it is normally fine.
-- **Maximum token permissions** clamp the request: if `packages` is capped at
-  read, login succeeds but the push is denied.
+A job token is **not** an alternative. Gitea injects `GITEA_TOKEN` into every job
+and it works for the API and for git, but the container registry rejects it:
 
-A personal access token is only needed where the job token is unavailable (older
-Gitea, or a runner that does not inject it); the workflow checks for the token
-and says so instead of failing with a generic denial.
+```
+Error response from daemon: Get "https://<host>/v2/": unauthorized
+```
+
+`permissions: packages: write` does not change that, and the registry
+documentation itself points at a personal access token as the credential to use
+in place of a password — which is also what accounts with 2FA require.
+
+If the secret is missing the workflow fails at a dedicated check with that
+instruction, before docker login would produce a generic denial. The login
+username is the repository owner, the account the token belongs to — not
+necessarily the user who triggered the run.
 
 ### Cache
 
