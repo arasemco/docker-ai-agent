@@ -1,0 +1,35 @@
+# =============================================================================
+# Example: a child stack that extends agent-base/compose/base.yml
+# =============================================================================
+#   docker compose up -d --build
+#
+# Nothing here is host-specific: no proxy values, no host paths, no resource
+# limits. Add those with the fragments in ../compose/ or a gitignored local
+# override file (see the repo README's "Overrides" section).
+# =============================================================================
+
+services:
+  example-cli:
+    extends:
+      file: ../../compose/base.yml
+      service: agent-base
+    image: ${EXAMPLE_IMAGE:-example-cli:local}
+    pull_policy: build
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        AGENT_BASE: ${AGENT_BASE:-agent-base:1.1.0}
+        CLI_VERSION: ${CLI_VERSION:-1.0.0}
+    hostname: example-cli
+    # Args for AGENT_CMD (the image sets it to example-cli).
+    command: ["--help"]
+    volumes:
+      # The CLI's own state. Named volume by default so its ownership matches
+      # the image's agent user; point the variable at a host path to bind.
+      - ${EXAMPLE_HOME_HOST:-example-cli-home}:/home/agent/.config/example-cli
+
+volumes:
+  # Required by compose/base.yml (extends cannot carry top-level volumes).
+  agent-docker:
+  example-cli-home:

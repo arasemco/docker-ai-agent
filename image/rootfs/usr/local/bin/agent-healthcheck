@@ -3,9 +3,9 @@
 # agent-healthcheck — HEALTHCHECK for every image built FROM agent-base.
 #
 # A child image should override this when its CLI exposes a real readiness
-# signal (dsh's healthcheck signs a browser-session cookie and requires 200 on
-# `/`, opencode's web UI answers an authenticated GET). This default proves
-# the agent process is alive and, when configured, the URL answers.
+# signal (an HTTP endpoint that requires an authenticated request, a socket,
+# a state file). This default proves the agent process is alive and, when
+# configured, that AGENT_HEALTH_URL answers.
 #
 # AGENT_HEALTHCHECK selects the check (default: auto):
 #   auto       AGENT_HEALTH_URL when set, then the AGENT_CMD process is alive;

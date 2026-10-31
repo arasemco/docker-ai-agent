@@ -1,0 +1,28 @@
+# =============================================================================
+# Example: bind-mounting host trees into the agent's workspace
+# =============================================================================
+# compose/base.yml mounts no host paths at all; a container that does not mount
+# anything keeps its workspace inside the container (fine for throwaway runs).
+# Merge this file to work on real directories:
+#
+#   docker compose -f compose/harness.yml -f examples/compose/host-mounts.yml up -d
+#
+# Two host-path rules, both learned the hard way:
+#   * The host directory must exist and be writable by AGENT_UID. Docker
+#     auto-creates a missing bind source as root, and the container's
+#     cont-init will then refuse to start with an ownership error.
+#   * On a host whose own Docker daemon is rootless, bind mounts appear
+#     root-owned INSIDE the container, so AGENT_UID cannot write them at all;
+#     use a named volume there instead.
+#
+# The service key must match the composed service name; rename as needed.
+# =============================================================================
+
+services:
+  agent-base:
+    volumes:
+      - ${AGENT_PROJECTS_HOST:-${HOME}/Projects}:/home/agent/Projects
+      # Read-only host trees, plus one writable exception, if you use this
+      # layout. Delete what you don't need.
+      - ${HOME}/stacks:/home/agent/stacks:ro
+      - ${HOME}/stacks/000-templates:/home/agent/stacks/000-templates:rw

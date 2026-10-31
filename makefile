@@ -1,60 +1,62 @@
-# agent-base — build/test helpers.
-#
-#   make build     build the base image via bake (OCI labels resolved from git)
-#   make test      build + run the in-image test stage (shellcheck, selftest)
-#   make smoke     build and run the image in a real container (dockerd, storage)
-#   make up/down   run the test harness stack from docker-compose.yml
-SERVICE ?= agent-base
+# agent-base — build/test helpers. Everything runs from the repo root; the
+# image build context is image/ (see docker-bake.hcl).
+SERVICE   ?= agent-base
 SHELL_BIN ?= bash
+
+# Harness stack, plus compose/local.yml when present (gitignored, machine
+# specific: proxy, host mounts, limits — see README.md#overrides).
+LOCAL_COMPOSE := $(wildcard compose/local.yml)
+COMPOSE := docker compose -f compose/harness.yml $(if $(LOCAL_COMPOSE),-f $(LOCAL_COMPOSE))
 
 .PHONY: default build test smoke up down ps logs exec debug config
 
 default:
 	@echo "Usage:"
-	@echo "  make build              build agent-base with bake.sh (pinned versions)"
+	@echo "  make build              build agent-base via scripts/bake.sh (pinned versions)"
 	@echo "  make test               build the test stage: shellcheck + tool selftest"
 	@echo "  make smoke              run scripts/smoke.sh against a real container"
-	@echo "  make up                 run the test harness stack (docker-compose.yml)"
+	@echo "  make up                 run the harness stack (compose/harness.yml)"
 	@echo "  make down               stop it and drop its volumes"
-	@echo "  make logs               follow the stack's logs"
-	@echo "  make exec               shell in the running container as the agent user"
-	@echo "  make debug              shell in the running container as root"
-	@echo "  make config             validate and print docker-compose.yml"
+	@echo "  make logs               follow the harness logs"
+	@echo "  make exec               shell in it as the agent user"
+	@echo "  make debug              shell in it as root"
+	@echo "  make config             validate and print the effective compose config"
 	@echo ""
-	@echo "  SERVICE=$(SERVICE) SHELL_BIN=$(SHELL_BIN) are overridable."
+	@echo "  Optional: a gitignored compose/local.yml is merged automatically"
+	@echo "  (start from examples/compose/*.yml). SERVICE=$(SERVICE) SHELL_BIN=$(SHELL_BIN)."
 
-# bake.sh, not `docker buildx bake` directly: it exports GIT_SHA/GIT_REF so the
-# OCI revision/ref.name labels aren't "unknown".
+# scripts/bake.sh, not `docker buildx bake` directly: it exports GIT_SHA/GIT_REF
+# (OCI labels) and runs from the repo root so the relative context resolves.
 build:
-	bash bake.sh
+	scripts/bake.sh
 
-# Builds the Dockerfile's "test" stage: shellcheck on the entrypoint scripts
-# plus a tool-matrix selftest. Needs no devices or daemon.
+# Builds the Dockerfile's "test" stage: shellcheck on every script plus a
+# tool-matrix selftest. Needs no devices or daemon.
 test:
-	bash bake.sh test
+	scripts/bake.sh test
 
-# Builds and runs the image with the devices/seccomp profile the rootless
-# daemon needs, then validates it from inside (scripts/smoke.sh).
+# Builds and runs the image with the devices/seccomp profile the daemon needs,
+# then validates it from inside (scripts/smoke.sh).
 smoke:
-	./scripts/smoke.sh
+	scripts/smoke.sh
 
 up:
-	docker compose up --detach --build
+	$(COMPOSE) up --detach --build
 
 down:
-	docker compose down --volumes --timeout 0
+	$(COMPOSE) down --volumes --timeout 0
 
 ps:
-	docker compose ps
+	$(COMPOSE) ps
 
 logs:
-	docker compose logs --follow $(SERVICE) || true
+	$(COMPOSE) logs --follow $(SERVICE) || true
 
 exec:
-	docker compose exec --tty --interactive $(SERVICE) $(SHELL_BIN)
+	$(COMPOSE) exec --user 1000 --tty --interactive $(SERVICE) $(SHELL_BIN)
 
 debug:
-	docker compose exec --tty --interactive --user 0 --workdir /root $(SERVICE) $(SHELL_BIN)
+	$(COMPOSE) exec --user 0 --workdir /root --tty --interactive $(SERVICE) $(SHELL_BIN)
 
 config:
-	docker compose config
+	$(COMPOSE) config

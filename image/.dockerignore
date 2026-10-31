@@ -1,0 +1,8 @@
+# The build context is image/ only: the Dockerfile plus rootfs/. Compose files,
+# examples and scripts live outside it, so this only has to keep stray local
+# files out.
+.git
+.gitignore
+.dockerignore
+.idea
+*.log

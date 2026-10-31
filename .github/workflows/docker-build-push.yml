@@ -1,4 +1,4 @@
-name: Build agent-base
+name: Build agent-base image
 
 on:
   push:
@@ -32,6 +32,8 @@ jobs:
 
       # Derives what docker-bake.hcl needs from whichever git host runs this
       # workflow (GitHub Actions or Gitea Actions, which aliases github.*).
+      # These are the only place the workflow assumes an identity: the bake
+      # file itself defaults to no registry and no source URL.
       - name: Set variables
         id: vars
         run: |

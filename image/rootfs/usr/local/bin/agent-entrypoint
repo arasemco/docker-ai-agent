@@ -9,7 +9,7 @@
 # s6 does not forward the docker CMD args to services, so this wrapper stashes
 # them NUL-separated in /run/agent/args and hands PID 1 over to /init. The
 # agent service reads the file back (services.d/agent/run → agent-run), so
-# `docker compose run opencode web --port 4096` still reaches the CLI exactly
+# `docker compose run myagent web --port 4096` still reaches the CLI exactly
 # as before. An empty CMD leaves the file empty and the CLI runs with no args.
 # =============================================================================
 set -e

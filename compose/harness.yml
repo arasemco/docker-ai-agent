@@ -1,0 +1,46 @@
+# =============================================================================
+# compose/harness.yml — this repository's own test stack
+# =============================================================================
+# Builds image/ and keeps a container alive so scripts/smoke.sh (or `make
+# shell`) can poke at it. It is not meant to be deployed and it sets no
+# values you would deploy with: no proxy, no host mounts, no resource limits —
+# see examples/ and README.md#overrides.
+#
+#   docker compose -f compose/harness.yml up -d --build
+#   docker compose -f compose/harness.yml exec --user 1000 agent-base bash
+# =============================================================================
+
+# Pin the compose project name: it decides the volume/network prefixes, and
+# without it they follow this file's directory ("compose_...").
+name: agent-base
+
+services:
+  agent-base:
+    extends:
+      file: base.yml
+      service: agent-base
+    image: ${AGENT_IMAGE:-agent-base:local}
+    pull_policy: build
+    build:
+      context: ../image
+      dockerfile: Dockerfile
+      target: agent-base
+      args:
+        AGENT_USER: ${AGENT_USER:-agent}
+        AGENT_UID: ${AGENT_UID:-1000}
+        AGENT_GID: ${AGENT_GID:-1000}
+        DOCKER_VERSION: ${DOCKER_VERSION:-29.8.1}
+        UV_VERSION: ${UV_VERSION:-0.13.6}
+    # The entrypoint hands CMD to the agent service, which runs
+    # `bash -lc "sleep infinity"` — enough to keep the container up for exec.
+    command: ["-lc", "sleep infinity"]
+    volumes:
+      # Volume-backed workspace: the harness must work on any host, including
+      # ones whose Docker is rootless (where host bind mounts appear
+      # root-owned inside the container).
+      - agent-projects:/home/${AGENT_USER:-agent}/Projects
+
+volumes:
+  # Required by compose/base.yml; see its header.
+  agent-docker:
+  agent-projects:

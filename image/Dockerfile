@@ -2,17 +2,17 @@
 # =============================================================================
 # agent-base — shared sandbox image for AI coding-agent CLIs
 # =============================================================================
-# Everything the claude-code, opencode and deepseek-harness images used to
-# repeat is defined once here:
+# Everything an agent image needs is defined once here, so child images carry
+# only their own CLI:
 #
 #   * Debian 12 (glibc), pinned by digest, with Node/npm from Debian's own
-#     packages. Not Alpine: several agent CLIs ship glibc-only prebuilt native
-#     modules (dsh dies at boot on musl with "--expose-internals is required
-#     for the HMR service"), so glibc is the only base all three run on.
-#     NOTE: bookworm's nodejs is 18.20 — fine for npm tooling, too old for dsh,
-#     whose package.json engines require ^22.19.0 || >=24. A child that needs a
-#     newer Node must supply it itself (NodeSource apt repo, pinned tarball, or
-#     the upstream node image); this base installs only from package managers.
+#     packages. Not Alpine: agent CLIs commonly ship glibc-only prebuilt native
+#     modules (Node's native addons and several standalone binaries fail on
+#     musl), so glibc is the portable choice.
+#     NOTE: bookworm's nodejs is 18.20. Packaging that is fine, but a CLI whose
+#     package.json engines demand a newer Node must install its own (NodeSource
+#     apt repo, pinned tarball, or the upstream node image); this base installs
+#     only from package managers.
 #   * One unprivileged user (AGENT_USER, uid/gid 1000 by default) that owns
 #     everything under its home, so bind mounts line up with the host user
 #     on most systems.
@@ -31,19 +31,19 @@
 #     service, then execs s6's /init) and agent-healthcheck.
 #
 # Agent-specific parts do NOT belong here — installing the CLI, its config
-# and defaults go in the child image:
+# and defaults go in the child image (see ../examples/child-image/):
 #
-#     FROM git.omesa.net/asemo/agent-base:1
-#     ARG CLAUDE_VERSION=2.1.3
-#     RUN curl -fsSL https://claude.ai/install.sh | bash -s -- "${CLAUDE_VERSION}"
-#     ENV AGENT_CMD=claude
+#     FROM agent-base:1.1.0
+#     ARG CLI_VERSION=1.0.0
+#     RUN npm install --global "some-agent-cli@${CLI_VERSION}"
+#     ENV AGENT_CMD=some-agent-cli
 #     COPY hooks/ /etc/agent-entrypoint.d/
 # =============================================================================
 
 ARG DEBIAN_REF=docker.io/library/debian:bookworm-slim@sha256:99c0b25c46d0214d5a2091092e7908907dcaecd6a962cde0ac700acee222b6f3
 
-# s6-overlay release and the sha256 of each release asset, pinned exactly as
-# in the tor image (../tor/Tor/Dockerfile) rather than tracked as "latest".
+# s6-overlay release and the sha256 of each release asset, pinned rather than
+# tracked as "latest".
 # The digests live here, not next to the tarballs, so a tampered release
 # asset fails the build instead of being checked against an equally tampered
 # .sha256 file. Bump by checking
@@ -132,7 +132,7 @@ RUN existing_group="$(getent group "${AGENT_GID}" | cut -d: -f1)" \
 #   ~/Projects                 AGENT_WORKSPACE, the agent's working directory
 #   ~/.local/share/docker      rootless daemon data root (named volume)
 #   ~/.docker                  daemon log + XDG_RUNTIME_DIR
-#   ~/.local/bin, ~/.config    CLI installers (claude, opencode) and XDG config
+#   ~/.local/bin, ~/.config    CLI installers and XDG config
 #   ~/.ssh, ~/.gitconfig       git identity/credentials, gh auth
 #   /etc/agent-entrypoint.d    sourced hooks (child images COPY into it)
 RUN mkdir -p "/home/${AGENT_USER}/Projects" \
@@ -153,8 +153,8 @@ RUN grep -q "^${AGENT_USER}:" /etc/subuid 2>/dev/null || echo "${AGENT_USER}:100
     grep -q "^${AGENT_USER}:" /etc/subgid 2>/dev/null || echo "${AGENT_USER}:100000:65536" >> /etc/subgid
 
 # Base tooling for the shell commands an agent runs. nodejs/npm come from
-# Debian (18.20 / npm 9.2 on bookworm — see the header note about dsh needing
-# >= 22.19); curl + ca-certificates also serve HTTPS model calls.
+# Debian (18.20 / npm 9.2 on bookworm — see the header note about CLIs
+# that need a newer Node); curl + ca-certificates also serve HTTPS model calls.
 #
 # yq is the Debian package: kislyuk's 3.x, a jq wrapper (jq syntax, `yq -y` for
 # YAML output). mikefarah's Go yq v4 is not in Debian and would need a GitHub
