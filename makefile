@@ -1,7 +1,7 @@
-# agent-base — build/test helpers.
+# agent-base — build and run helpers.
 #
-# The stack is assembled from compose fragments (see compose/ and
-# scripts/compose.sh): base.yml always, plus whatever WITH lists.
+# The stack is assembled from the compose fragments by scripts/compose.sh:
+# base.yml always, plus whatever WITH lists.
 #
 #   make up                      # base + daemon
 #   make up WITH=daemon,proxy    # + outbound proxy (values from .env)

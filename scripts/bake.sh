@@ -29,7 +29,7 @@
 #
 # Rules:
 #   * An environment variable always wins — `AUTHOR=... scripts/bake.sh --push`
-#     beats anything derived here, and is how you publish under your identity.
+#     beats anything derived here.
 #   * `BAKE_DERIVE=0` disables all derivation (leaves the bake defaults: no
 #     registry, "unknown" metadata).
 #   * `BAKE_QUIET=1` silences the one-line summary per derived value.
@@ -115,9 +115,9 @@ derive_registry() {
 # ---------------------------------------------------------------------------
 # Licence detection
 # ---------------------------------------------------------------------------
-# Deliberately a smoke test over the file's first lines rather than a full
-# licence scanner: it only has to recognise the licences people actually drop
-# in as LICENSE, and anything unrecognised keeps the bake default.
+# A smoke test over the file's first lines rather than a full licence scanner:
+# it recognises the common licences and leaves anything else to the bake
+# default.
 detect_license() {
     local f
     for f in LICENSE LICENSE.md LICENSE.txt LICENCE LICENCE.md COPYING; do
@@ -229,7 +229,7 @@ if [ "${BAKE_DERIVE:-1}" != 0 ] && [ "${in_git}" -eq 1 ]; then
     fi
 fi
 
-# Only export what we actually have: an unset variable leaves the HCL default
+# Export only the variables that were resolved: an unset variable leaves the HCL default
 # ("unknown", or "" for REGISTRY/SOURCE_URL) untouched, because bake reads its
 # variables from the environment when present.
 for var in GIT_SHA GIT_REF AUTHOR SOURCE_URL REGISTRY VENDOR LICENSES BASE_VERSION; do

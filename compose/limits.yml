@@ -3,8 +3,8 @@
 # =============================================================================
 #   AGENT_CPUS=4 AGENT_MEMORY=8G scripts/compose.sh --with daemon,limits -- up -d
 #
-# Defaults are deliberately modest: a shared base should not assume a 32-core
-# workstation. Set AGENT_CPUS / AGENT_MEMORY in .env to match your machine.
+# Defaults are modest on purpose: a shared base cannot assume the size of the
+# machine it runs on. Set AGENT_CPUS / AGENT_MEMORY for the deployment.
 # =============================================================================
 
 services:

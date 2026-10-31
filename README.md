@@ -1,14 +1,15 @@
 # agent-base
 
-A generic, reusable base image for AI coding-agent containers.
+A reusable container image for AI coding-agent CLIs, plus the compose pieces to
+run it.
 
-It packages the parts every agent image otherwise re-implements — a glibc
-distro with Node, one unprivileged user, a rootless Docker daemon under s6
-supervision, Python/uv and a dev toolchain — and nothing else. It contains no
-agent: a child image adds its own CLI in a handful of lines.
+It packages what every agent image otherwise re-implements: a glibc distribution
+with Node, one unprivileged user, an s6-supervised rootless Docker daemon, and a
+development toolchain. It contains no agent — a child image adds its own CLI in a
+handful of lines.
 
-Nothing in the core is specific to the author's machine: no registry, no proxy,
-no host paths, no resource limits, no author metadata.
+The core carries no host-, person- or project-specific values: no registry, no
+proxy, no host paths, no resource limits, no author metadata.
 
 ## Quick start
 
@@ -30,7 +31,7 @@ docker compose up -d --build     # root file: base + daemon + image
 scripts/bake.sh                  # build the image via bake
 ```
 
-## Using it from a child image
+## Use from a child image
 
 ```dockerfile
 # my-agent/Dockerfile
@@ -116,9 +117,9 @@ gitignored `compose/local.yml`, which `compose.sh` appends automatically;
 ## What is inside
 
 - **Debian 12 (glibc)**, pinned by digest, with Node/npm from Debian's own
-  packages. Alpine is deliberately not used: agent CLIs commonly ship
-  glibc-only native builds. Bookworm ships Node 18.20 — a CLI that needs a
-  newer Node installs it itself (the base only uses package managers).
+  packages. Alpine is not used: agent CLIs commonly ship glibc-only native
+  builds. Bookworm provides Node 18.20; a CLI that needs a newer Node installs
+  it itself, since the base installs only from package managers.
 - **One unprivileged user** (`agent`, uid/gid 1000), owning its home, so bind
   mounts line up with the host user on most systems.
 - **s6-overlay as PID 1** supervising two independent longruns: `dockerd` (the
@@ -130,82 +131,28 @@ gitignored `compose/local.yml`, which `compose.sh` appends automatically;
   Debian, `uv` from PyPI via `pipx`, since Debian does not package uv).
 - **An entrypoint wrapper**, a hook directory and a healthcheck.
 
-## Contract
+## Configuration
 
-### Services (s6-overlay)
-
-`/init` is PID 1. Two legacy-style longruns start after the
-[cont-init scripts](image/rootfs/etc/cont-init.d):
-
-| Service | Runs as | What it does |
-|---|---|---|
-| `dockerd` | `AGENT_USER` | rootless Docker daemon; announces readiness on s6's notification fd once `docker info` answers |
-| `agent` | `AGENT_USER` | waits (bounded) for `dockerd` readiness, then execs `AGENT_CMD` |
-
-Restart policy:
-
-- `dockerd` restarts on any exit; after `AGENT_DOCKERD_MAX_RESTARTS` (3)
-  failed starts in a row it is left down and the service idles instead of
-  restart-looping. A run of 60 s or more resets the counter.
-- `agent` stops the container when the CLI exits **0**; a non-zero exit after
-  60 s restarts it with a fresh counter, and `AGENT_RESTART_MAX` (3) failed
-  starts in a row stop the container. A signal (container stop) never restarts.
-
-Because the CLI is a supervised service and not PID 1, **the container's exit
-status is s6's** (0). The CLI's status is recorded in `/run/agent/exit-code`
-and logged.
-
-### Environment
+Every setting is optional and defaults to something workable. The full table —
+including volumes, hooks and healthcheck modes — is in
+[docs/configuration.md](docs/configuration.md); the ones used most:
 
 | Variable | Default | Meaning |
 |---|---|---|
-| `AGENT_CMD` | `bash` | CLI the agent service runs |
-| `AGENT_WORKSPACE` | `$HOME/workspace` | working directory; must be writable |
-| `AGENT_DOCKERD` | `1` | start the rootless daemon (`0` skips it) |
+| `AGENT_CMD` | `bash` | command the `agent` service runs |
+| `AGENT_WORKSPACE` | `$HOME/workspace` | working directory |
+| `AGENT_DOCKERD` | `1` | `0` keeps the inner daemon down |
 | `AGENT_DOCKERD_TIMEOUT` | `30` | seconds to wait for daemon readiness |
-| `AGENT_DOCKERD_MAX_RESTARTS` | `3` | consecutive failed daemon starts before idling |
-| `AGENT_RESTART_MAX` | `3` | consecutive failed CLI starts before stopping the container |
+| `AGENT_RESTART_MAX` | `3` | failed CLI starts before the container stops |
 | `AGENT_HEALTHCHECK` | `auto` | `auto`, `docker`, `agent`, `url:<url>`, `off` |
-| `AGENT_HEALTH_URL` | – | extra URL that must answer successfully |
-| `AGENT_USER` | `agent` | account the services run as (build arg + env) |
-| `XDG_RUNTIME_DIR` | `$HOME/.docker/run` | daemon socket directory |
-| `DOCKER_HOST` | `unix://$XDG_RUNTIME_DIR/docker.sock` | daemon socket |
 
-`AGENT_HEALTHCHECK=auto` fails when `AGENT_CMD` is not running or
-`AGENT_HEALTH_URL` does not answer; a rootless daemon that is down is only
-warned about, because the agent still works without it. Use `docker` to make
-the daemon mandatory.
+Two operational details:
 
-### Filesystem
-
-| Path | Purpose |
-|---|---|
-| `/home/<AGENT_USER>/workspace` | working directory (`AGENT_WORKSPACE`) |
-| `/home/<AGENT_USER>/.local/share/docker` | rootless daemon data root (own volume) |
-| `/home/<AGENT_USER>/.docker/dockerd.log` | daemon log |
-| `/run/agent/args` | container CMD, NUL-separated (written by the entrypoint) |
-| `/run/agent/exit-code` | last CLI exit status |
-| `/run/agent/*.fails` | restart counters (delete to retry after giving up) |
-| `/etc/agent-entrypoint.d/*.sh` | hooks, sourced before the CLI starts |
-| `/etc/cont-init.d/`, `/etc/services.d/` | s6 stage-2 scripts and services |
-| `/usr/local/lib/agent-base/selftest.sh` | in-container validation |
-
-### Hooks
-
-A child can drop `*.sh` files into `/etc/agent-entrypoint.d/`. They are
-**sourced** just before the CLI starts, as the agent user, so they can rewrite
-the argument list (`set -- web --no-open "$@"`) or export variables the CLI
-reads. They must not fail the start: wrap optional work in `|| true`.
-
-### Runtime requirements
-
-The daemon needs `seccomp:unconfined`, `systempaths=unconfined`, `/dev/fuse`
-and `/dev/net/tun`; `compose/base.yml` sets them. Without them the container
-still runs and the agent still works — only `docker` is unavailable, and the
-daemon service logs why.
-
-`docker exec` lands as **root** (PID 1's user). For the agent's shell:
-`docker compose exec --user 1000 <service> bash`.
+- The inner daemon needs `seccomp:unconfined`, `systempaths=unconfined`,
+  `/dev/fuse` and `/dev/net/tun` (`compose/daemon.yml`). Without them the agent
+  runs but `docker` inside the container does not.
+- `docker exec` lands as **root** (s6's PID 1). Use `--user 1000` for a shell
+  with the agent's identity.
 
 ## Overrides (keep your machine out of git)
 
@@ -233,6 +180,18 @@ source is auto-created root-owned (the image's cont-init then refuses to start),
 and on a host whose Docker is rootless, bind mounts appear root-owned *inside*
 the container, so uid 1000 cannot write them.
 
+## Documentation
+
+| Document | Contents |
+|---|---|
+| [docs/index.md](docs/index.md) | overview and reading order |
+| [docs/architecture.md](docs/architecture.md) | image layout, boot sequence, services, state |
+| [docs/compose.md](docs/compose.md) | fragments, assembler, child stacks |
+| [docs/configuration.md](docs/configuration.md) | every variable, volume, path and hook |
+| [docs/build.md](docs/build.md) | build, provenance, publishing, versioning |
+| [docs/troubleshooting.md](docs/troubleshooting.md) | known failure modes |
+| [agent/README.md](agent/README.md) | working on this repository (map, invariants, checks) |
+
 ## Layout
 
 | Path | Purpose |
@@ -251,50 +210,19 @@ the container, so uid 1000 cannot write them.
 
 ## Publishing
 
-`scripts/bake.sh` fills in the provenance variables from the checkout before
-running bake, so an OCI-labelled image needs no hand-typed metadata:
-
-| Variable | Derived from | Example |
-|---|---|---|
-| `GIT_SHA` | `git rev-parse HEAD` | `3439dfb…` |
-| `GIT_REF` | exact tag at HEAD, else branch | `v1.2.0` / `main` |
-| `AUTHOR` | author of the last commit | `Jane Roe <jane@example.org>` |
-| `SOURCE_URL` | the git remote, normalised to https | `https://git.example/team/agent-base` |
-| `REGISTRY` | that remote's host + owner (forge-aware) | `git.example/team`, `ghcr.io/team`, `registry.gitlab.com/team` |
-| `VENDOR` | author's mail domain | `example.org` |
-| `LICENSES` | SPDX id detected in `LICENSE`/`COPYING` | `MIT` |
-| `BASE_VERSION` | the exact tag at HEAD, when it is `vX.Y.Z` | `1.2.0` |
-
-Rules:
-
-- **The environment always wins.** `AUTHOR="…" REGISTRY=… scripts/bake.sh --push`
-  overrides anything derived.
-- **Which remote** supplies `SOURCE_URL`/`REGISTRY`: `BAKE_REMOTE=<name>` if
-  set, else `origin`, else the first configured remote — a repo whose only
-  remote is called `gitea` or `upstream` works without renaming it.
-- **`--push` requires a registry.** With no `REGISTRY` (derived or explicit)
-  bake would tag `agent-base:latest` and push it to Docker Hub's `library/`
-  namespace, which fails with a confusing `denied: requested access to the
-  resource is denied`. The script refuses up front and prints the three ways
-  forward; `BAKE_ALLOW_DOCKERHUB_PUSH=1` is the explicit opt-in.
-- **`BAKE_DERIVE=0`** disables derivation entirely (leaves bake's defaults: no
-  registry, `unknown` metadata), for a fully manual build.
-- **`BAKE_QUIET=1`** silences the one-line summary of what was derived.
-- Outside a git checkout (a source tarball) nothing is derived and bake runs on
-  its defaults; no `git` noise.
-
-So on a plain clone of this repo the image is tagged locally
-(`agent-base:1.2.0`); with a remote set it is tagged for that forge's registry
-(`<host>/<owner>/agent-base:1.2.0`). Optional metadata that stays unset renders
-as `unknown` in the OCI labels.
-
-Pushing needs credentials for that registry first:
+`scripts/bake.sh` derives the provenance metadata from the checkout (commit,
+author, remote, licence, version) and tags the image for the remote's registry.
+Override any of it from the environment, disable derivation with
+`BAKE_DERIVE=0`, and log in before pushing:
 
 ```bash
-docker login git.example.com        # or ghcr.io, registry.gitlab.com, …
-scripts/bake.sh --push              # tags + push, derived from the remote
+docker login registry.example
+scripts/bake.sh --push
 ```
 
-For a Gitea/Forgejo registry the image path is `<host>/<owner>/<image>`, so a
-remote of `https://git.example.com/team/repo.git` yields
-`git.example.com/team/agent-base:1.2.0`.
+[docs/build.md](docs/build.md) documents the derivation table, the pinned inputs
+and the CI workflow.
+
+## License
+
+MIT — see [LICENSE](LICENSE).

@@ -1,8 +1,9 @@
 # Examples
 
-Copy-paste material for things a shared base image has no business deciding.
-Nothing here is used by the build, the tests or the default stack, and none of
-it is a default: it is one operator's shape, meant to be edited.
+Copy-paste material for deployment-specific values that the shared base
+deliberately leaves out. Nothing here is used by the build, the tests or the
+default stack, and none of it is a default: each file is a starting point to
+edit.
 
 | Path | What it shows |
 |---|---|

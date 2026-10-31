@@ -2,20 +2,19 @@
 # =============================================================================
 # services.d/agent/finish — runs after the agent CLI exits.
 #
-# Exit policy (this replaces the old "exec the CLI as PID 1" behavior):
+# Exit policy:
 #
-#   * exit 0                    → the agent is done: stop the whole supervision
-#                                 tree, so the container exits, just like
-#                                 `docker run image --help` used to.
-#   * non-zero, ran >= 60s      → treat as a crash after a good run: s6 restarts
-#                                 it and the failure counter is reset.
-#   * non-zero, shorter         → count it; after AGENT_RESTART_MAX failed
-#                                 starts in a row, stop the tree instead of
-#                                 restart-looping a CLI that cannot start.
+#   * exit 0                    -> the agent is done: stop the supervision tree,
+#                                  so the container exits.
+#   * non-zero, ran >= 60s      -> a crash after a good run: s6 restarts it and
+#                                  the failure counter is reset.
+#   * non-zero, shorter         -> count it; after AGENT_RESTART_MAX failed
+#                                  starts in a row, stop the tree instead of
+#                                  restart-looping a CLI that cannot start.
+#   * killed by a signal        -> container stop, nothing to restart.
 #
-# The agent's own exit status is recorded in /run/agent/exit-code (and in the
-# container log) for tooling; the container's exit status is s6's, not the
-# CLI's.
+# The agent's exit status is recorded in /run/agent/exit-code and logged; the
+# container's exit status is s6's.
 # =============================================================================
 set -uo pipefail
 

@@ -6,9 +6,9 @@
 #   SMOKE_REQUIRE_DOCKER=1 ...         # fail instead of skipping when the
 #                                      # in-container daemon cannot start
 #
-# The build-only checks (shellcheck, tool matrix) run in `scripts/bake.sh test`;
-# this script adds what needs devices and a seccomp profile: s6 bringing both
-# services up, fuse-overlayfs as the storage driver, and a real image build.
+# `scripts/bake.sh test` covers the build-time checks (shellcheck, tool matrix).
+# This script adds what needs devices and a seccomp profile: both s6 services
+# coming up, fuse-overlayfs as the storage driver, and a real image build.
 set -euo pipefail
 
 cd "$(dirname "$0")/.."

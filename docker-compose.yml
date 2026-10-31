@@ -1,9 +1,9 @@
 # =============================================================================
 # agent-base — minimal working stack
 # =============================================================================
-# `docker compose up -d --build` and you have the image running, with the s6
-# services and a usable inner Docker daemon. The fragments it includes are the
-# same ones scripts/compose.sh can combine differently; nothing is duplicated:
+# `docker compose up -d --build` builds the image and starts it with the s6
+# services and an inner Docker daemon. The included fragments are the same ones
+# scripts/compose.sh can combine differently; nothing is duplicated:
 #
 #   compose/base.yml    service skeleton + AGENT_* toggles
 #   compose/daemon.yml  devices/seccomp + the daemon's data volume

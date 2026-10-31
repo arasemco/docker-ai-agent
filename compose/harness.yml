@@ -6,9 +6,8 @@
 # replaces that with a no-op that stays up, so `make exec`, `make debug` and
 # scripts/smoke.sh have something to talk to.
 #
-# It is a test detail, not part of a deployable stack: the root
-# docker-compose.yml carries the same command explicitly, and a child image
-# supplies its own (AGENT_CMD + compose command:).
+# Test-only: the root docker-compose.yml sets the same command explicitly, and
+# a child image supplies its own (AGENT_CMD plus a compose command:).
 # =============================================================================
 
 services:

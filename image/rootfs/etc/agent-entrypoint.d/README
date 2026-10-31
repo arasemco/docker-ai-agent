@@ -1,23 +1,23 @@
 # Entrypoint hooks
 
-Every file matching `*.sh` in this directory is **sourced** by
-`agent-entrypoint` after the rootless Docker daemon is up and before the agent
-CLI starts (see `/usr/local/bin/agent-entrypoint`). Because they are sourced,
-a hook can change the argument list that the CLI is finally called with:
+Every file matching `*.sh` in this directory is **sourced** by `agent-run`
+after the rootless Docker daemon is ready and before the agent CLI starts (see
+`/usr/local/bin/agent-run`). Being sourced, a hook can change the argument list
+the CLI is finally called with:
 
 ```bash
 # /etc/agent-entrypoint.d/20-web-flags.sh
 if [ "${1:-}" = "web" ]; then
     shift
     set -- web --no-open "$@"
-    [ -n "${DSH_PORT:-}" ] && set -- "$@" --port "$DSH_PORT"
+    [ -n "${MYAGENT_PORT:-}" ] && set -- "$@" --port "$MYAGENT_PORT"
 fi
 ```
 
 Rules for hooks:
 
-- They must be non-fatal: `set -e` from the entrypoint applies, so wrap
-  anything optional in `|| true` and log a warning instead of exiting.
+- They must be non-fatal: `set -e` is active, so wrap optional work in
+  `|| true` and log a warning instead of exiting.
 - They run as the agent user, with the working directory already set to
   `AGENT_WORKSPACE`.
 - Child images add them with `COPY hooks/ /etc/agent-entrypoint.d/`; the base

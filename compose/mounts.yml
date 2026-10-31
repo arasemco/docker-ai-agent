@@ -7,9 +7,9 @@
 #   AGENT_WORKSPACE_HOST=~/src/acme scripts/compose.sh --with daemon,mounts -- up -d
 #
 # The default is ./workspace under the directory you run compose from — a plain,
-# generic location, not anybody's home layout. Set AGENT_WORKSPACE_HOST to
-# whatever you actually work in. Add further binds (read-only trees, shared
-# templates) in your own compose/local.yml.
+# generic location rather than a particular home layout. Set
+# AGENT_WORKSPACE_HOST to the directory the agent should work in. Further binds
+# belong in compose/local.yml.
 #
 # Two host-path rules that bite:
 #   * The directory must exist and be writable by uid 1000. A missing bind

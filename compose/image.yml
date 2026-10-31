@@ -1,13 +1,12 @@
 # =============================================================================
-# compose/image.yml — build this repository's image and keep it running
+# compose/image.yml — build this repository's image
 # =============================================================================
-# One fragment, one concern: what to build (image/) and what it should do by
-# default. Everything else — the service skeleton, devices, proxy, limits,
-# mounts — comes from the neighbouring fragments, so this file stays the same
-# whether you run it alone or with extras.
+# One fragment, one concern: the image name, build context, target and build
+# args. The command, the service skeleton, devices, proxy, limits and mounts
+# belong to the other fragments, so this one is identical in every combination.
 #
-#   docker compose up -d --build        # root docker-compose.yml (base+daemon+this)
-#   make up WITH=daemon,proxy           # scripts/compose.sh with more fragments
+#   docker compose up -d --build     # root docker-compose.yml (base+daemon+this)
+#   make up WITH=daemon,proxy        # scripts/compose.sh with more fragments
 # =============================================================================
 
 # The stack file is the first --file, so its directory decides compose's

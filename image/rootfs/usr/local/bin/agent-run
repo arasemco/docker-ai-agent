@@ -9,9 +9,8 @@
 #                    by agent-entrypoint (absent/empty = no arguments)
 #
 # Hooks in /etc/agent-entrypoint.d/*.sh are sourced here, before the CLI
-# starts, so they can rewrite "$@" (`set -- web --no-open "$@"`). Keeping them
-# in this script rather than in cont-init.d is deliberate: cont-init has no
-# access to the container's CMD args.
+# starts, so they can rewrite "$@" (`set -- web --no-open "$@"`). They run here
+# rather than in cont-init.d because cont-init never sees the container CMD.
 # =============================================================================
 set -e
 

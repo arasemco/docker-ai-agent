@@ -2,16 +2,13 @@
 # =============================================================================
 # agent-base — shared sandbox image for AI coding-agent CLIs
 # =============================================================================
-# Everything an agent image needs is defined once here, so child images carry
-# only their own CLI:
+# Contents:
 #
-#   * Debian 12 (glibc), pinned by digest, with Node/npm from Debian's own
-#     packages. Not Alpine: agent CLIs commonly ship glibc-only prebuilt native
-#     modules (Node's native addons and several standalone binaries fail on
-#     musl), so glibc is the portable choice.
-#     NOTE: bookworm's nodejs is 18.20. Packaging that is fine, but a CLI whose
-#     package.json engines demand a newer Node must install its own (NodeSource
-#     apt repo, pinned tarball, or the upstream node image); this base installs
+#   * Debian 12 (glibc), pinned by digest, with Node/npm from Debian's packages.
+#     glibc is required rather than preferred: agent CLIs commonly ship prebuilt
+#     native modules and static binaries that do not load on musl.
+#     Debian bookworm provides Node 18.20. A CLI whose engines require a newer
+#     Node installs its own (NodeSource, pinned tarball); this image installs
 #     only from package managers.
 #   * One unprivileged user (AGENT_USER, uid/gid 1000 by default) that owns
 #     everything under its home, so bind mounts line up with the host user
@@ -22,16 +19,15 @@
 #         crash and announcing readiness through s6's notification fd;
 #       - agent: the CLI itself, run as AGENT_USER, restarted on crash up to a
 #         limit, and stopping the container when it exits cleanly.
-#     Splitting them is the point: a crashing daemon no longer takes the
-#     agent down with it, and a dead agent no longer hides behind a live
-#     daemon. Hooks still run before the CLI starts (services.d/agent/run).
-#   * Python 3 + uv, Node/npm, yq, git/gh, a native build toolchain and the
-#     GNU userland tools agents expect to exist — all from a package manager.
-#   * A generic entrypoint wrapper (passes docker CMD args to the agent
-#     service, then execs s6's /init) and agent-healthcheck.
+#     Keeping them separate means a crash in one does not stop the other, and
+#     each has its own restart policy. Hooks run before the CLI starts.
+#   * Python 3 + uv, Node/npm, yq, git/gh, a native build toolchain and the GNU
+#     userland tools agents expect, all from a package manager.
+#   * An entrypoint wrapper (stores the container CMD for the agent service,
+#     then execs s6's /init) and agent-healthcheck.
 #
-# Agent-specific parts do NOT belong here — installing the CLI, its config
-# and defaults go in the child image (see ../examples/child-image/):
+# Agent-specific parts do not belong here. A child image adds its CLI, its
+# config and its default command (see ../examples/child-image/):
 #
 #     FROM agent-base:1.2.0
 #     ARG CLI_VERSION=1.0.0
@@ -158,8 +154,8 @@ RUN grep -q "^${AGENT_USER}:" /etc/subuid 2>/dev/null || echo "${AGENT_USER}:100
 #
 # yq is the Debian package: kislyuk's 3.x, a jq wrapper (jq syntax, `yq -y` for
 # YAML output). mikefarah's Go yq v4 is not in Debian and would need a GitHub
-# release download, which this image deliberately avoids — everything
-# userland-facing comes from apt. The two yq implementations are not drop-in
+# release download, which this image does not do: everything userland-facing
+# comes from apt. The two yq implementations are not drop-in
 # compatible; anything needing v4 syntax must install it itself. (This build
 # prints `yq --version` as "yq 0.0.0" while dpkg has 3.1.0-3: an upstream
 # packaging quirk, not a broken install.)
@@ -237,8 +233,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 # uv comes from PyPI at a pinned version, installed by pipx — itself an apt
 # package. Debian has no `uv` package in any suite (checked bookworm, trixie
-# and sid), and PyPI is the only package-managed source, so this replaces the
-# official `curl astral.sh | sh` installer. PIPX_HOME/PIPX_BIN_DIR keep pipx's
+# and sid), and PyPI is the only package-managed source. pipx is the apt
+# package that installs it, keeping the venv out of a user's home. PIPX_HOME/PIPX_BIN_DIR keep pipx's
 # venv out of a user's home, so `uv` and `uvx` land in /usr/local/bin for the
 # agent user instead of root's ~/.local/bin.
 ENV UV_LINK_MODE=copy
@@ -331,16 +327,16 @@ CMD []
 
 
 # =============================================================================
-# test — build-time checks that need no daemon: the user exists with the
-# requested uid/gid, the tool matrix resolves and runs, and every script passes
-# shellcheck. Built by the "test" bake target and by `make test`; never pushed.
-# The runtime checks (services coming up, storage driver) need the container's
-# devices and seccomp profile, so they live in scripts/smoke.sh instead.
+# test — build-time checks that need no daemon: the agent user exists, the tool
+# matrix resolves and runs, and every script passes shellcheck. Produced by the
+# "test" bake target and by `make test`; never pushed. Runtime checks (services,
+# storage driver) need devices and a seccomp profile, so they live in
+# scripts/smoke.sh.
 #
-# The s6 service scripts start with #!/command/with-contenv, which shellcheck
-# cannot detect: -s bash names the interpreter and SC1008 silences the shebang
-# complaint. The shebang must stay on line 1 for the kernel, so this is linted
-# as a separate invocation rather than by rewriting the scripts.
+# The s6 scripts start with #!/command/with-contenv, which shellcheck cannot
+# detect: `-s bash` names the interpreter and SC1008 silences the shebang
+# warning. The shebang has to stay on line 1 for the kernel, so these are linted
+# in a separate invocation instead of being rewritten.
 # =============================================================================
 FROM agent-base AS test
 

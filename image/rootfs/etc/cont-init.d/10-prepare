@@ -4,12 +4,11 @@
 # (s6-overlay stage 2). Prepares ownership and directories, then lets s6 start
 # the services.
 #
-# Unlike the old shell entrypoint, this runs as root, so it can FIX ownership
-# instead of only refusing to start: named volumes mounted over a path the
-# image owns inherit that ownership, but a host bind mount keeps its host
-# ownership, and a directory Docker auto-created comes out root-owned. The
-# workspace is chowned non-recursively only (it can be a whole source tree);
-# anything deeper stays as the user left it.
+# This runs as root, so it can repair ownership rather than only report it: a
+# named volume mounted over a path the image owns inherits that ownership, but a
+# host bind mount keeps its host ownership and a directory Docker auto-created
+# comes out root-owned. The workspace is chowned non-recursively only (it can be
+# a whole source tree); deeper entries are left alone.
 #
 # Exits non-zero — aborting startup with a clear message — only when the
 # workspace is still not writable by AGENT_USER after that.

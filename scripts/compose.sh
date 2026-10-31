@@ -2,14 +2,14 @@
 # =============================================================================
 # compose.sh — assembles compose fragments and runs docker compose
 # =============================================================================
-# The compose/ directory holds one fragment per concern instead of one big
-# file, so a stack includes exactly what it needs:
+# compose/ holds one fragment per concern, so a stack includes exactly what it
+# needs:
 #
-#   base.yml     always included: service skeleton, AGENT_* toggles, data volume
-#   daemon.yml   devices + seccomp the rootless Docker daemon needs
+#   base.yml     always: service skeleton + AGENT_* toggles
+#   daemon.yml   devices and seccomp for the rootless Docker daemon
 #   proxy.yml    outbound proxy pass-through
 #   limits.yml   CPU/memory limits
-#   mounts.yml   bind the workspace to a host directory
+#   mounts.yml   host bind for the workspace
 #
 # Usage:
 #   scripts/compose.sh [--with daemon,proxy] [--service NAME] [--file F]... -- <compose args>
@@ -27,12 +27,12 @@
 #   scripts/compose.sh --with daemon,proxy,mounts -- up -d     # + proxy + mounts
 #   scripts/compose.sh --file compose/harness.yml -- config    # the test stack
 #
-# Why a script: `-f` merging only lines up services that share a NAME, and the
-# fragments are written for the canonical service `agent-base`. When a child
-# stack asks for another name (myagent, …) this renames the fragment's
-# service key in a throwaway copy, so the child keeps its own service name and
-# still gets the shared sandbox. `extends` cannot do that: compose accepts only
-# a single extends per service, so it cannot stack fragments.
+# A script is needed because `-f` merging only combines services that share a
+# name, and the fragments are written for the canonical service `agent-base`.
+# For a child stack (any other service name) the fragment keys are rewritten in
+# a throwaway copy, so the child keeps its own name and still gets the shared
+# sandbox. `extends` cannot express this: compose accepts only one extends per
+# service, so fragments cannot be stacked with it.
 # =============================================================================
 set -euo pipefail
 

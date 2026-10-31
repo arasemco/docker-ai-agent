@@ -8,10 +8,9 @@
 # moment `docker info` answers, so the agent service can wait for a working
 # daemon instead of racing it.
 #
-# The daemon itself is a child of this script rather than the exec target,
-# because readiness has to be detected and reported after it starts; the script
-# forwards TERM/INT to it and exits with its status, which is what s6
-# supervises.
+# The daemon runs as a child of this script rather than as the exec target:
+# readiness has to be detected and reported after it starts. The script forwards
+# TERM/INT to it and exits with its status, which is what s6 supervises.
 #
 # Environment:
 #   AGENT_DOCKERD              1 to start the daemon, 0 to leave it off

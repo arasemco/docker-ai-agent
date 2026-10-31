@@ -5,9 +5,9 @@
 #   selftest.sh              # tools + rootless dockerd + a storage-driver proof
 #   selftest.sh --no-docker  # tools only (used by the Dockerfile "test" stage)
 #
-# Exits non-zero on the first missing tool or failed check and prints a PASS /
-# FAIL table, so `make smoke` (scripts/smoke.sh) can run it in a real container
-# with the devices and seccomp profile the daemon needs.
+# Prints a PASS/FAIL table and exits non-zero if any check fails. The Dockerfile
+# "test" stage runs the tool half; scripts/smoke.sh runs the full set inside a
+# container that has the devices and seccomp profile the daemon needs.
 # =============================================================================
 set -uo pipefail
 

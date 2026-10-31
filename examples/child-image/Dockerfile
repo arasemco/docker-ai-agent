@@ -13,8 +13,8 @@
 ARG AGENT_BASE=agent-base:1.2.0
 FROM ${AGENT_BASE}
 
-# Pin the CLI exactly; a dist-tag would float. Replace with whatever your agent
-# installs from: npm, a Python package, a release binary…
+# Pin the CLI exactly; a dist-tag would float. Replace this with the package
+# name and channel the real CLI uses: npm, PyPI, or a release binary.
 ARG CLI_VERSION=1.0.0
 RUN npm install --global --no-fund --no-audit --no-update-notifier "example-cli@${CLI_VERSION}" \
     && example-cli --version

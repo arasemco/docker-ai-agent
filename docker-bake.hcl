@@ -2,19 +2,18 @@
 // docker-bake.hcl — build definition for the agent-base image
 // =============================================================================
 //
-// Usage (via scripts/bake.sh, which resolves GIT_SHA/GIT_REF for the labels):
+// Usage (through scripts/bake.sh, which also fills the provenance variables):
 //   scripts/bake.sh --print        # resolve and print the config, no build
 //   scripts/bake.sh                # build the "default" group
 //   scripts/bake.sh --push         # build and push
 //   scripts/bake.sh test           # build + run the in-image test stage
 //
-// Every variable defaults to something neutral: no registry, no author, no
-// source URL. Set them through the environment (an env var overrides a
-// `variable` block's default whenever the names match) or with
-// `scripts/bake.sh --set REGISTRY=...`.
+// Every variable has a neutral default: no registry, no author, no source URL.
+// Set one through the environment (an env var overrides a `variable` block's
+// default when the names match) or with `scripts/bake.sh --set REGISTRY=...`.
 //
-// HCL cannot read git or CI context, so scripts/bake.sh computes
-// GIT_SHA/GIT_REF and exports them.
+// HCL cannot read git or CI context, so scripts/bake.sh computes GIT_SHA,
+// GIT_REF and the rest and exports them before invoking bake.
 // =============================================================================
 
 // Image repository prefix, without a trailing slash, e.g.
@@ -84,8 +83,8 @@ variable "GIT_REF" { default = "unknown" }
 // Comma-separated so PLATFORMS=linux/amd64,linux/arm64 can override it.
 variable "PLATFORMS" { default = "linux/amd64" }
 
-// Pure OCI-standard labels. Optional metadata renders as "unknown" rather than
-// baking one operator's identity into a shared base image.
+// Pure OCI-standard labels. Optional metadata renders as "unknown" instead of
+// assuming an owner for the image.
 function "oci_labels" {
   params = [title, description, version, base]
   result = {

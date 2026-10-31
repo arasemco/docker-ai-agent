@@ -3,8 +3,8 @@
 # =============================================================================
 #   scripts/compose.sh --with daemon,proxy -- up -d
 #
-# Deliberately NOT part of base.yml: a proxy URL is deployment-specific, and
-# empty pass-throughs in the base would set HTTP_PROXY="" in every container.
+# Not part of base.yml: a proxy URL is deployment-specific, and empty
+# pass-throughs in the base would set HTTP_PROXY="" in every container.
 #
 # Resolution order for every proxy variable, first match wins:
 #
