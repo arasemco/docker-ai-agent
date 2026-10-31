@@ -1,0 +1,80 @@
+#!/bin/bash
+# =============================================================================
+# agent-healthcheck — HEALTHCHECK for every image built FROM agent-base.
+#
+# A child image should override this when its CLI exposes a real readiness
+# signal (dsh's healthcheck signs a browser-session cookie and requires 200 on
+# `/`, opencode's web UI answers an authenticated GET). This default proves
+# the agent process is alive and, when configured, the URL answers.
+#
+# AGENT_HEALTHCHECK selects the check (default: auto):
+#   auto       AGENT_HEALTH_URL when set, then the AGENT_CMD process is alive;
+#              a rootless dockerd that is not responding is warned about but
+#              does not fail the check
+#   docker     only the daemon check (strict: fails when it is down)
+#   agent      only the AGENT_CMD process check
+#   url:<url>  only an HTTP GET expecting 2xx/3xx
+#   off        always healthy
+#
+# Why `auto` tolerates a dead daemon: the daemon needs the host to grant
+# devices and a permissive seccomp profile, and cannot start at all when the
+# host's own Docker is rootless (nested user namespaces are refused). The
+# agent still works in those cases, so the healthcheck reports the agent and
+# warns about docker. Set AGENT_HEALTHCHECK=docker where docker is mandatory.
+#
+# AGENT_HEALTH_URL: an extra URL to require (e.g. http://127.0.0.1:4096/).
+# =============================================================================
+set -u
+
+mode="${AGENT_HEALTHCHECK:-auto}"
+fail() {
+    printf 'healthcheck: %s\n' "$*" >&2
+    exit 1
+}
+
+warn() {
+    printf 'healthcheck: warning: %s\n' "$*" >&2
+}
+
+check_docker() {
+    timeout 8 docker info >/dev/null 2>&1 || fail "rootless dockerd is not responding (see ~/.docker/dockerd.log)"
+}
+
+check_agent() {
+    local cmd="${AGENT_CMD:-bash}" name
+    name="$(basename "$cmd")"
+    # The default command is an interactive shell; nothing to watch for.
+    [ "$name" = bash ] && return 0
+    pgrep -u "$(id -u)" -x "$name" >/dev/null 2>&1 || fail "'$name' is not running"
+}
+
+check_url() {
+    curl -fsS -o /dev/null --max-time 6 "$1" || fail "GET $1 did not answer successfully"
+}
+
+case "$mode" in
+    off)
+        exit 0
+        ;;
+    docker)
+        check_docker
+        ;;
+    agent)
+        check_agent
+        ;;
+    url:*)
+        check_url "${mode#url:}"
+        ;;
+    auto)
+        [ -n "${AGENT_HEALTH_URL:-}" ] && check_url "$AGENT_HEALTH_URL"
+        check_agent
+        if [ "${AGENT_DOCKERD:-1}" != 0 ] && ! timeout 8 docker info >/dev/null 2>&1; then
+            warn "rootless dockerd is not responding (see ~/.docker/dockerd.log); the agent is unaffected"
+        fi
+        ;;
+    *)
+        fail "unknown AGENT_HEALTHCHECK mode '$mode' (expected auto|docker|agent|url:<url>|off)"
+        ;;
+esac
+
+exit 0

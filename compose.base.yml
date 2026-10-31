@@ -1,0 +1,93 @@
+# =============================================================================
+# compose.base.yml — the service definition every agent stack shares
+# =============================================================================
+# This is NOT a standalone stack: it has no image or build of its own. A child
+# repo (claude-code/, opencode/, deepseek-harness/) extends it and adds only
+# what is specific to its CLI:
+#
+#   # claude-code/docker-compose.yml
+#   services:
+#     claude:
+#       extends:
+#         file: ../agent-base/compose.base.yml
+#         service: agent-base
+#       image: claude-code:local
+#       build:
+#         context: .
+#         args:
+#           AGENT_USER: ${AGENT_USER:-claude}      # rename the account in the image
+#           CLAUDE_VERSION: ${CLAUDE_VERSION:-2.1.3}
+#       command: ["--remote-control"]              # args for AGENT_CMD
+#       volumes:
+#         - ${CLAUDE_HOME_HOST:-claude-home}:/home/${AGENT_USER:-claude}/.claude
+#   volumes:
+#     claude-docker:        # REQUIRED: the base mounts ${AGENT_DOCKER_VOLUME}
+#
+# Two interpolation rules drive everything:
+#
+#   * AGENT_USER (from the child's .env) selects the home path in every mount
+#     target here, so a child that renames the account in its image gets
+#     matching mount points without touching this file.
+#   * Every proxy variable uses `${VAR-default}`, NOT `${VAR:-default}`: with
+#     `:-`, an explicitly empty value in .env still falls back to the proxy,
+#     which makes "leave it empty to disable the proxy" impossible.
+#
+# Named volumes used here (AGENT_DOCKER_VOLUME) must be declared in the
+# consuming project's top-level `volumes:` block — `extends` does not carry
+# top-level declarations across files. Point it at an absolute host path
+# instead to use a bind mount.
+# =============================================================================
+
+services:
+  agent-base:
+    init: true
+    stdin_open: true
+    tty: true
+    restart: "no"
+    runtime: runc
+    hostname: ${AGENT_HOSTNAME:-agent}
+
+    environment:
+      # The agent's working directory, matching the Projects mount below.
+      - AGENT_WORKSPACE=/home/${AGENT_USER:-agent}/Projects
+      # Rootless Docker daemon bootstrap (see agent-entrypoint).
+      - AGENT_DOCKERD=${AGENT_DOCKERD:-1}
+      # Route all outbound traffic through the Squid proxy. Leave a value
+      # empty in .env to disable that proxy entirely.
+      - HTTP_PROXY=${HTTP_PROXY-http://192.168.1.48:3128}
+      - HTTPS_PROXY=${HTTPS_PROXY-http://192.168.1.48:3128}
+      - ALL_PROXY=${ALL_PROXY-http://192.168.1.48:3128}
+      - NO_PROXY=${NO_PROXY-localhost,127.0.0.1,::1,192.168.1.48}
+      - http_proxy=${http_proxy-http://192.168.1.48:3128}
+      - https_proxy=${https_proxy-http://192.168.1.48:3128}
+      - all_proxy=${all_proxy-http://192.168.1.48:3128}
+      - no_proxy=${no_proxy-localhost,127.0.0.1,::1,192.168.1.48}
+
+    volumes:
+      # Images/containers/build cache of the in-container rootless daemon. A
+      # named volume, not a bind mount: it holds files owned by subordinate
+      # uids, and losing it on every recreate would discard the agent's image
+      # cache.
+      - ${AGENT_DOCKER_VOLUME:-agent-docker}:/home/${AGENT_USER:-agent}/.local/share/docker
+      # The agent's working directory. Children mount their own extra paths
+      # (stacks, single repos) on top of this; a host path that doesn't exist
+      # yet is auto-created root-owned by Docker, which agent-entrypoint then
+      # reports as an ownership error.
+      - ${AGENT_PROJECTS_HOST:-${HOME}/Projects}:/home/${AGENT_USER:-agent}/Projects
+
+    # Required by the rootless Docker daemon: rootlesskit creates user/mount
+    # namespaces (blocked by the default seccomp profile and masked /proc
+    # paths), fuse-overlayfs needs /dev/fuse, slirp4netns needs /dev/net/tun.
+    # Without them the agent still runs, only `docker` inside it is missing.
+    security_opt:
+      - seccomp:unconfined
+      - systempaths=unconfined
+    devices:
+      - /dev/fuse
+      - /dev/net/tun
+
+    deploy:
+      resources:
+        limits:
+          cpus: "8"
+          memory: 32G
