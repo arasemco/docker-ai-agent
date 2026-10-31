@@ -40,7 +40,7 @@ make debug      # shell as root
 |---|---|
 | base image (Debian, agent user, s6 services, dockerd, toolchain) | `AGENT_BASE` build arg, default `agent-base:1.1.0` |
 | OpenCode itself | `npm install -g opencode-ai@${OPENCODE_VERSION}` in `image/Dockerfile` |
-| sandbox (devices, seccomp, proxy pass-through, restart budgets) | `../agent-base/compose/base.yml` via `extends` |
+| sandbox (service skeleton, devices/seccomp, proxy, limits, mounts) | agent-base compose fragments, assembled by `scripts/compose.sh` |
 | entrypoint, hooks, healthcheck, restart policy | `agent-base` |
 | provider config | yours: see [examples/config/opencode.jsonc](examples/config/opencode.jsonc) |
 
@@ -62,22 +62,40 @@ cp examples/config/opencode.jsonc compose/config.jsonc   # edit, then mount it:
 # volumes: [ ./compose/config.jsonc:/home/agent/.config/opencode/opencode.jsonc:ro ]
 ```
 
+## Compose fragments (what gets included)
+
+The stack is assembled from agent-base's per-concern fragments; pick the ones
+you need with `WITH` (or `--with`):
+
+| Fragment | `--with` | Adds |
+|---|---|---|
+| `base` | always | service skeleton, `AGENT_*` toggles, daemon data volume |
+| `daemon` | default | `/dev/fuse`, `/dev/net/tun`, `seccomp:unconfined`, `systempaths: unconfined` |
+| `proxy` | `proxy` | outbound proxy pass-through (values from `.env`) |
+| `limits` | `limits` | CPU/memory limits from `AGENT_CPUS` / `AGENT_MEMORY` |
+| `mounts` | `mounts` | bind the workspace to `AGENT_PROJECTS_HOST` (default `~/Projects`) |
+
+```bash
+make up                                   # base + daemon
+make up WITH=daemon,proxy                 # + proxy
+WITH=daemon,limits,mounts make up         # + limits + host mount
+./scripts/compose.sh --with daemon,proxy -- up -d    # same, without make
+```
+
 ## Overrides (keep your machine out of git)
 
 | File (gitignored) | Start from | Holds |
 |---|---|---|
-| `compose/local.yml` | `examples/compose/*.yml` | host mounts, CPU/memory limits, per-host tweaks |
-| `.env` | `.env.example`, `examples/env/*.env` | port, password, provider keys, proxy |
+| `compose/local.yml` | your own fragment | extra binds, per-host tweaks beyond the fragments |
+| `.env` | `.env.example`, `examples/env/*.env` | port, password, provider keys, proxy, limits |
 
-`make` and `scripts/smoke.sh` merge `compose/local.yml` automatically when it
-exists:
+`scripts/compose.sh` merges `compose/local.yml` automatically when it exists:
 
 ```bash
 cp .env.example .env
-cat examples/env/proxy-squid.env >> .env          # only if you need a proxy
-cat examples/env/providers.env >> .env            # provider keys / local endpoint
-cp examples/compose/host-mounts.yml compose/local.yml
-make up
+cat examples/env/proxy-squid.env >> .env     # only if you need a proxy
+cat examples/env/providers.env >> .env       # provider keys / local endpoint
+make up WITH=daemon,proxy
 ```
 
 ## Contract with agent-base
@@ -99,7 +117,8 @@ make up
 | Path | Purpose |
 |---|---|
 | `image/Dockerfile` | the OpenCode layer on top of agent-base |
-| `docker-compose.yml` | the stack (extends agent-base's generic service) |
+| `docker-compose.yml` | the stack: only OpenCode-specific settings |
+| `scripts/compose.sh` | wraps agent-base's assembler: fragments + this stack + `compose/local.yml` |
 | `compose/local.yml` | gitignored, machine-specific overrides |
 | `examples/` | config, proxy/provider env and compose fragments (copy-paste) |
 | `docker-bake.hcl` | bake targets, pinned versions, neutral defaults |

@@ -10,14 +10,10 @@ set -euo pipefail
 
 cd "$(dirname "$0")/.."
 
-local_compose=""
-if [ -f compose/local.yml ]; then
-    local_compose="-f compose/local.yml"
-fi
-
+# Same assembly as the makefile: agent-base fragments (WITH, default daemon)
+# plus this stack, with compose/local.yml merged by the wrapper when present.
 compose() {
-    # shellcheck disable=SC2086 # word splitting of the optional -f is intended
-    docker compose $local_compose -f docker-compose.yml "$@"
+    scripts/compose.sh --with "${WITH:-daemon}" -- "$@"
 }
 
 echo "Validating compose config..."

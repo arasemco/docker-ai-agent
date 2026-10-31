@@ -1,27 +1,22 @@
 # =============================================================================
-# opencode stack — the OpenCode Web UI on agent-base
+# opencode stack — only the OpenCode-specific bits
 # =============================================================================
-# The sandbox (s6 services, rootless Docker, seccomp/devices, proxy
-# pass-through) comes from agent-base/compose/base.yml via `extends`. This file
-# adds only what is OpenCode-specific: the build, the published port, the
-# credentials and OpenCode's own state volumes.
+# The sandbox (s6 services, rootless Docker devices/seccomp, proxy, limits,
+# mounts) is assembled from agent-base's compose fragments by scripts/compose.sh:
 #
-# Nothing here is host-specific — no proxy values, no host paths, no CPU or
-# memory numbers. Put those in a gitignored compose/local.yml started from
-# examples/, or in .env:
+#   cp .env.example .env
+#   ./scripts/compose.sh -- up -d --build          # base + daemon (default)
+#   ./scripts/compose.sh --with daemon,proxy -- up -d
+#   make up WITH=daemon,proxy,limits
 #
-#   cp .env.example .env                    # ports, image, password
-#   cp examples/compose/host-mounts.yml compose/local.yml   # optional
-#   docker compose up -d --build
+# This file therefore carries no devices, no seccomp, no proxy values, no host
+# paths and no CPU/memory numbers.
 #
 #   http://127.0.0.1:4096
 # =============================================================================
 
 services:
   opencode:
-    extends:
-      file: ../agent-base/compose/base.yml
-      service: agent-base
     image: ${OPENCODE_IMAGE:-opencode:local}
     pull_policy: build
     build:
@@ -29,7 +24,7 @@ services:
       dockerfile: Dockerfile
       args:
         # Pin the shared base by tag (never :latest) so a rebuild is
-        # reproducible; override AGENT_BASE to use a pushed image.
+        # reproducible; override AGENT_BASE to use a pushed agent-base.
         AGENT_BASE: ${AGENT_BASE:-agent-base:1.1.0}
         OPENCODE_VERSION: ${OPENCODE_VERSION:-1.19.5}
     hostname: opencode
@@ -60,9 +55,7 @@ services:
       - ${OPENCODE_STATE_HOST:-opencode-state}:/home/agent/.local/state/opencode
 
 volumes:
-  # Required by agent-base/compose/base.yml (extends cannot carry top-level
-  # volume declarations across files). Compose prefixes each with the project
-  # name, so these cannot collide with another stack's volumes.
+  # Required by agent-base/compose/base.yml.
   agent-docker:
   opencode-config:
   opencode-data:
