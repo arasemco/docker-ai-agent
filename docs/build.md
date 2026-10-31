@@ -71,17 +71,22 @@ broken Dockerfile or script fails the check and nothing is published.
 
 ### Registry credentials
 
-The workflow needs one repository secret:
+No secret is required. Docker login uses the **built-in Actions job token**,
+`${{ secrets.GITEA_TOKEN }}`, which Gitea injects into every job, together with
+the job's `permissions: packages: write` request. The username is the user who
+triggered the run, because that is the identity the job token carries.
 
-| Secret | Contents |
-|---|---|
-| `GIT_TOKEN` | a Gitea access token with the **`write:package`** scope, created by the account that owns the registry namespace |
+Two settings can still stand in the way, both under owner or repository
+`Settings -> Actions -> General`:
 
-Gitea's auto-injected actions token has no package scope and cannot push images,
-so it is not an alternative. If the secret is missing the workflow fails at a
-dedicated check with that instruction, before docker login would produce a
-generic denial. The login username is the repository owner, because that is the
-account the token belongs to — not necessarily the user who triggered the run.
+- **Default permission mode: restricted** makes `packages` read-only for jobs that
+  do not ask for more; this workflow asks, so it is normally fine.
+- **Maximum token permissions** clamp the request: if `packages` is capped at
+  read, login succeeds but the push is denied.
+
+A personal access token is only needed where the job token is unavailable (older
+Gitea, or a runner that does not inject it); the workflow checks for the token
+and says so instead of failing with a generic denial.
 
 ### Cache
 
