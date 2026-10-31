@@ -6,9 +6,21 @@ The daemon service logs why; read `/home/agent/.docker/dockerd.log`.
 
 | Symptom in the log | Cause | Fix |
 |---|---|---|
-| `newuidmap: write to uid_map failed: Operation not permitted` | the host's own Docker daemon is rootless, so a second level of user namespaces is refused | run on a rootful host; there is no workaround inside the container |
+| `newuidmap: write to uid_map failed: Operation not permitted` | `/etc/subuid` names ids the parent namespace cannot reach — typical when the container itself runs under a rootless daemon | automatic: `cont-init.d/10-prepare` rewrites the ranges; `AGENT_SUBID_REMAP=0` disables that |
 | `failed to setup UID/GID map` / rootlesskit errors | the container lacks `seccomp:unconfined`, `systempaths=unconfined` or the devices | select the `daemon` fragment or add those settings |
 | `permission denied` on `/dev/fuse` | `/dev/fuse` not passed through | add the device |
+
+**Why the id ranges matter.** `newuidmap` resolves a user's subordinate ids by
+name when rootlesskit builds its namespace. The image ships the layout a rootful
+host uses (`agent:100000:65536`). A container created by a *rootless* host
+daemon only reaches ids `0..65536`, so that range is refused with
+`write to uid_map failed: Operation not permitted`.
+
+`cont-init.d/10-prepare` detects the mismatch (the configured range is not fully
+inside the container's id map) and rewrites `/etc/subuid` and `/etc/subgid` to
+fit the reachable ids, skipping the agent account's own id because rootlesskit
+maps that one to 0 inside its namespace. Nested daemons then start normally;
+`AGENT_SUBID_REMAP=0` turns the rewrite off.
 
 The agent still runs without the daemon; `AGENT_DOCKERD=0` makes that explicit
 and silences the start attempt.

@@ -10,6 +10,13 @@
 # comes out root-owned. The workspace is chowned non-recursively only (it can be
 # a whole source tree); deeper entries are left alone.
 #
+# It also adapts the subordinate id ranges the inner rootless daemon will use.
+# The image ships the usual rootful-host ranges (100000:65536); when the
+# container itself runs inside another rootless daemon, those ids do not exist in
+# the parent namespace, newuidmap refuses them, and the inner dockerd cannot
+# start. In that case the ranges are rewritten to fit inside the ids the
+# container can actually reach. AGENT_SUBID_REMAP=0 disables this.
+#
 # Exits non-zero — aborting startup with a clear message — only when the
 # workspace is still not writable by AGENT_USER after that.
 # =============================================================================
@@ -54,6 +61,57 @@ chmod 0755 /run/agent
 if [ -f /run/agent/args ]; then
     chmod 0644 /run/agent/args
 fi
+
+# ---------------------------------------------------------------------------
+# Subordinate id ranges for the inner rootless daemon
+# ---------------------------------------------------------------------------
+# newuidmap/newgidmap resolve a user's ranges by name when rootlesskit sets up
+# its namespace. A range that lies outside what the container's own id map can
+# reach is refused with "write to uid_map failed: Operation not permitted",
+# which is what happens on a rootless host: the container sees 0..65535, while
+# /etc/subuid still names 100000..165535.
+#
+# The replacement ranges skip the account's own id, because rootlesskit maps
+# that id to 0 inside its namespace and a range overlapping it would be invalid.
+rewrite_subid_range() {
+    local map_file="$1" subid_file="$2" own_id="$3" user="$4"
+    local max start count last
+
+    [ "${AGENT_SUBID_REMAP:-1}" = "0" ] && return 0
+    [ -r "${map_file}" ] && [ -w "${subid_file}" ] || return 0
+
+    # Highest id this container can hand out: sum of every mapped range. A
+    # privileged container reports a very large value, and its default range
+    # already fits, so no special case is needed here.
+    max="$(awk '{ if ($1 + $3 - 1 > m) m = $1 + $3 - 1 } END { print m + 0 }' "${map_file}")"
+    [ "${max}" -gt 1 ] || return 0
+
+    start=""
+    count=""
+    read -r start count <<<"$(awk -F: -v u="${user}" '$1 == u { print $2, $3; exit }' "${subid_file}")" || true
+    if [ -n "${start}" ] && [ "${start}" -ge 1 ]; then
+        last=$(( start + count - 1 ))
+        if [ "${last}" -le "${max}" ] && { [ "${last}" -lt "${own_id}" ] || [ "${start}" -gt "${own_id}" ]; }; then
+            return 0
+        fi
+    fi
+
+    {
+        if [ "${own_id}" -gt 1 ]; then
+            printf '%s:1:%s\n' "${user}" "$(( own_id - 1 ))"
+        fi
+        if [ "${max}" -gt "${own_id}" ]; then
+            printf '%s:%s:%s\n' "${user}" "$(( own_id + 1 ))" "$(( max - own_id ))"
+        fi
+        awk -F: -v u="${user}" '$1 != u' "${subid_file}" 2>/dev/null || true
+    } > "${subid_file}.tmp"
+    mv "${subid_file}.tmp" "${subid_file}"
+
+    log "rewrote ${subid_file} for ${user} into the reachable id range 1..${max}"
+}
+
+rewrite_subid_range /proc/self/uid_map /etc/subuid "${agent_uid}" "${AGENT_USER}"
+rewrite_subid_range /proc/self/gid_map /etc/subgid "${agent_gid}" "${AGENT_USER}"
 
 # The hook directory is copied into the image, so it is root-owned; hooks only
 # need to be readable by the agent.

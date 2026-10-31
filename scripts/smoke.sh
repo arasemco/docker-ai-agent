@@ -4,7 +4,7 @@
 #   ./scripts/smoke.sh                 # build, start, selftest, check health
 #   SMOKE_CLEAN=1 ./scripts/smoke.sh   # also drop the daemon's data volume
 #   SMOKE_REQUIRE_DOCKER=1 ...         # fail instead of skipping when the
-#                                      # in-container daemon cannot start
+#                                      # in-container daemon does not come up
 #
 # `scripts/bake.sh test` covers the build-time checks (shellcheck, tool matrix).
 # This script adds what needs devices and a seccomp profile: both s6 services
@@ -42,7 +42,19 @@ compose exec --no-TTY agent-base sh -c \
     '/command/s6-svstat /run/service/dockerd; /command/s6-svstat /run/service/agent'
 
 echo "== rootless docker"
-if compose exec --no-TTY agent-base timeout 15 docker info >/dev/null 2>&1; then
+# The daemon initialises its storage and buildkit on a fresh volume, which can
+# outlast the healthcheck (that only proves the agent process is alive). Wait for
+# the API before deciding it is unavailable.
+daemon_up=0
+for _ in $(seq 1 30); do
+    if compose exec --no-TTY agent-base timeout 15 docker info >/dev/null 2>&1; then
+        daemon_up=1
+        break
+    fi
+    sleep 2
+done
+
+if [ "${daemon_up}" -eq 1 ]; then
     # The daemon is up, so the full selftest can prove the storage driver and
     # an actual image build.
     compose exec --no-TTY agent-base /usr/local/lib/agent-base/selftest.sh
@@ -56,7 +68,7 @@ else
         echo "   FAIL: SMOKE_REQUIRE_DOCKER=1 and the daemon is down"
         exit 1
     fi
-    echo "   SKIP: daemon unavailable here (host Docker rootless?); set SMOKE_REQUIRE_DOCKER=1 to make this fatal"
+    echo "   SKIP: the in-container daemon did not come up; set SMOKE_REQUIRE_DOCKER=1 to make this fatal"
 fi
 
 id="$(compose ps --quiet agent-base)"

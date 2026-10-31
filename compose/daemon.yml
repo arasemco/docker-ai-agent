@@ -16,10 +16,17 @@
 #                     bind mount: it holds files owned by subordinate uids, and
 #                     losing it would throw away the image cache on every
 #                     recreate. Declare it in the composing file.
+#
+# The image adapts /etc/subuid and /etc/subgid at start-up when the container
+# itself runs inside another rootless daemon (see docs/troubleshooting.md), so
+# this fragment works nested as well as on a rootful host.
 # =============================================================================
 
 services:
   agent-base:
+    # rootlesskit creates real namespaces, which an alternative runtime such as
+    # runsc cannot provide; runc is what docker-ce expects on a normal host.
+    runtime: runc
     security_opt:
       - seccomp:unconfined
       - systempaths=unconfined

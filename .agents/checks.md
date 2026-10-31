@@ -13,14 +13,16 @@ Run from the repository root.
 | Compose: service rename | `scripts/compose.sh --service probe --file compose/image.yml -- config \| grep 'probe:'` | service renamed |
 | Image build + unit checks | `scripts/bake.sh test` | `PASSED` |
 | Runtime | `make smoke` | `OK — agent-base built, running, and healthy` |
+| Runtime, daemon mandatory | `SMOKE_REQUIRE_DOCKER=1 make smoke` | same, with `daemon ... responds`, `storage driver fuse-overlayfs`, `docker build (FROM scratch) works` |
 | Tool matrix only | `docker compose exec agent-base /usr/local/lib/agent-base/selftest.sh --no-docker` | `PASSED` |
 | Generic core | `grep -rniE "asemo\|omesa\|[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+" image compose docker-compose.yml scripts docker-bake.hcl makefile README.md` | no output |
 
 ## Interpreting failures
 
-- `newuidmap: ... Operation not permitted` during `make smoke` — the host's
-  Docker is rootless; the nested daemon cannot start. Expected there; the agent
-  and its tools still pass.
+- `newuidmap: ... Operation not permitted` — the container's `/etc/subuid`
+  names ids the parent namespace cannot reach. `cont-init.d/10-prepare` rewrites
+  them automatically; if it still fails, check that the rewrite logged a
+  `rewrote /etc/subuid ...` line and that `AGENT_SUBID_REMAP` is not `0`.
 - `service "agent-base" refers to undefined volume ...` — a fragment mounts a
   volume that is not declared. Declare it in the fragment that mounts it.
 - `unable to prepare context: path ".../compose/image" not found` — a relative

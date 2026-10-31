@@ -23,6 +23,7 @@ All variables are optional; every default works with no configuration.
 | `AGENT_CPUS` / `AGENT_MEMORY` | `2` / `4G` | `limits.yml` | container limits |
 | `AGENT_SKILLS_HOST` | `${PWD}/skills` | `skills.yml` | host directory mounted as the shared skills root |
 | `AGENT_HOSTNAME` | `agent` | `base.yml` | container hostname |
+| `AGENT_SUBID_REMAP` | `1` | `cont-init.d/10-prepare` | rewrite `/etc/subuid`/`subgid` into the ids this container can reach |
 | `PROXY`, `HTTP_PROXY`, … | – | `proxy.yml` | see below |
 
 ## Proxy resolution

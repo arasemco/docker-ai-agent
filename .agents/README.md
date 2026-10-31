@@ -84,6 +84,8 @@ make smoke                    # real container: services, health, tools
 docker compose config >/dev/null && scripts/compose.sh --with daemon,proxy,limits,mounts --file compose/image.yml -- config >/dev/null
 ```
 
-`make smoke` reports the rootless daemon as `SKIP` on hosts whose Docker is
-itself rootless; that is expected, not a failure. Use
-`SMOKE_REQUIRE_DOCKER=1` where the daemon must work.
+`make smoke` waits for the inner daemon and proves storage with an offline
+build; `SMOKE_REQUIRE_DOCKER=1 make smoke` makes a missing daemon a failure. The
+daemon works nested (a container inside a rootless daemon) because
+`cont-init.d/10-prepare` rewrites the subordinate id ranges when the container
+cannot reach the defaults.

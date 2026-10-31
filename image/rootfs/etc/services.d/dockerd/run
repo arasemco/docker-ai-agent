@@ -80,11 +80,25 @@ fi
 
 date +%s > /run/agent/dockerd.started
 
+# Two launchers exist and they take their arguments differently:
+#   dockerd-rootless.sh   Debian's docker-ce-rootless-extras: execs dockerd with
+#                         the arguments it is given, so it must NOT receive the
+#                         word "dockerd" (dockerd would reject it as an option).
+#   dockerd-entrypoint.sh Alpine's docker:dind-rootless: expects a command
+#                         followed by its arguments.
 # fuse-overlayfs explicitly: native overlay2 cannot be mounted on top of the
 # container's own overlay root ("invalid argument").
-log "starting dockerd-rootless.sh with --storage-driver=fuse-overlayfs (log: ${DOCKER_LOG})"
+if command -v dockerd-rootless.sh >/dev/null 2>&1; then
+    launcher=dockerd-rootless.sh
+    launcher_args=(--storage-driver=fuse-overlayfs)
+else
+    launcher=dockerd-entrypoint.sh
+    launcher_args=(dockerd --storage-driver=fuse-overlayfs)
+fi
+
+log "starting ${launcher} ${launcher_args[*]} (log: ${DOCKER_LOG})"
 /command/s6-setuidgid "${AGENT_USER}" \
-    dockerd-rootless.sh dockerd --storage-driver=fuse-overlayfs >>"${DOCKER_LOG}" 2>&1 &
+    "${launcher}" "${launcher_args[@]}" >>"${DOCKER_LOG}" 2>&1 &
 dockerd_pid=$!
 log "dockerd pid ${dockerd_pid}"
 

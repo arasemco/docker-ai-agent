@@ -33,7 +33,7 @@ variable "LICENSES" { default = "" }
 
 // agent-base's own version, independent of any CLI installed on top of it.
 // Child images pin the base by this tag (or by digest, which is stronger).
-variable "BASE_VERSION" { default = "1.3.0" }
+variable "BASE_VERSION" { default = "1.4.0" }
 
 // The unprivileged user the image runs. Children normally keep "agent" — one
 // home path shared by every stack — and only rename it when they must.

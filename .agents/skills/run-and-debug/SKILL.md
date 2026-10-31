@@ -28,10 +28,16 @@ docker compose exec --user 1000 agent-base bash    # agent's shell (exec is root
 
 ## Failure patterns
 
-**`newuidmap: write to uid_map failed: Operation not permitted`** — the host's
-own Docker daemon is rootless, so the nested user namespace is refused. Not
-fixable inside the container; the agent still works, only `docker` is missing.
-`AGENT_DOCKERD=0` makes that explicit.
+**`newuidmap: write to uid_map failed: Operation not permitted`** — the
+container's `/etc/subuid` names ids its parent namespace cannot reach.
+`cont-init.d/10-prepare` rewrites the ranges when it detects this; verify the
+`rewrote /etc/subuid ...` line in the container log and that
+`AGENT_SUBID_REMAP` is not `0`.
+
+**`dockerd` prints its usage and exits** — the launcher received a stray
+`dockerd` word. `dockerd-rootless.sh` (Debian) takes dockerd flags directly,
+`dockerd-entrypoint.sh` (Alpine) expects the command first; the service picks
+the right form per launcher.
 
 **`dockerd exited during startup` with mount errors** — the container lacks
 `seccomp:unconfined`, `systempaths=unconfined`, `/dev/fuse` or `/dev/net/tun`.

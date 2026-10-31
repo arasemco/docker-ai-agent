@@ -57,9 +57,9 @@ scripts/bake.sh test     # builds; shellcheck + tool matrix inside the image
 make smoke               # both services, health, tool matrix in a real container
 ```
 
-`make smoke` reports the daemon as `SKIP` on hosts whose own Docker is rootless;
-that is expected. `SMOKE_REQUIRE_DOCKER=1` makes it fatal where the daemon must
-work.
+`SMOKE_REQUIRE_DOCKER=1 make smoke` also fails when the inner daemon does not
+come up; it starts even inside a rootless host daemon, so a failure there is a
+real regression, not an environment quirk.
 
 ## References
 
