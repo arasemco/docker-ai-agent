@@ -13,11 +13,16 @@
 #   GIT_SHA        git rev-parse HEAD
 #   GIT_REF        exact tag if HEAD is tagged, else the branch name
 #   AUTHOR         last commit author, "Name <email>"
-#   SOURCE_URL     origin remote, normalised to an https URL without .git
+#   SOURCE_URL     the git remote, normalised to an https URL without .git
 #   REGISTRY       owner prefix derived from that remote:
 #                    github.com/o/r      -> ghcr.io/o
 #                    gitlab.com/o/r      -> registry.gitlab.com/o
 #                    git.example/o/r     -> git.example/o
+#
+# The remote used for SOURCE_URL/REGISTRY is chosen in this order:
+#   BAKE_REMOTE=<name>, then origin, then the first configured remote. A repo
+#   whose only remote is called "gitea" or "upstream" therefore still derives
+#   correctly; BAKE_REMOTE pins a specific one when there are several.
 #   VENDOR         domain of the author's email (aram@asemo.pro -> asemo.pro)
 #   LICENSES       SPDX id detected from LICENSE / LICENCE / COPYING
 #   BASE_VERSION   the exact git tag at HEAD, when it looks like vX.Y.Z
@@ -28,6 +33,10 @@
 #   * `BAKE_DERIVE=0` disables all derivation (leaves the bake defaults: no
 #     registry, "unknown" metadata).
 #   * `BAKE_QUIET=1` silences the one-line summary per derived value.
+#   * `--push` without a derived or explicit REGISTRY is refused: bake would
+#     otherwise tag the image as bare "agent-base" and try to push it to
+#     Docker Hub (namespace "library"), which is never what anyone means.
+#     `BAKE_ALLOW_DOCKERHUB_PUSH=1` is the explicit opt-in for that.
 #   * Outside a git checkout (a source tarball) nothing is derived and bake
 #     runs with its own defaults; there is no `git: command not found` noise.
 #
@@ -175,13 +184,25 @@ if [ "${BAKE_DERIVE:-1}" != 0 ] && [ "${in_git}" -eq 1 ]; then
     fi
 
     if [ -z "${SOURCE_URL:-}" ]; then
-        SOURCE_URL="$(normalize_remote "$(git remote get-url origin 2>/dev/null || true)")"
-        [ -n "${SOURCE_URL}" ] && log "SOURCE_URL=${SOURCE_URL} (origin remote)"
+        # origin if it exists, else whatever the first remote is called — a
+        # repo whose only remote is "gitea"/"upstream" must still work.
+        remote="${BAKE_REMOTE:-}"
+        if [ -z "${remote}" ]; then
+            if git remote get-url origin >/dev/null 2>&1; then
+                remote=origin
+            else
+                remote="$(git remote 2>/dev/null | head -n 1 || true)"
+            fi
+        fi
+        if [ -n "${remote}" ]; then
+            SOURCE_URL="$(normalize_remote "$(git remote get-url "${remote}" 2>/dev/null || true)")"
+            [ -n "${SOURCE_URL}" ] && log "SOURCE_URL=${SOURCE_URL} (remote '${remote}')"
+        fi
     fi
 
     if [ -z "${REGISTRY:-}" ] && [ -n "${SOURCE_URL:-}" ]; then
         REGISTRY="$(derive_registry "${SOURCE_URL}")"
-        [ -n "${REGISTRY}" ] && log "REGISTRY=${REGISTRY} (derived from origin; override with REGISTRY=...)"
+        [ -n "${REGISTRY}" ] && log "REGISTRY=${REGISTRY} (derived from the remote; override with REGISTRY=...)"
     fi
 
     # Vendor from the author's mail domain: a label, not a legal claim, so an
@@ -216,5 +237,46 @@ for var in GIT_SHA GIT_REF AUTHOR SOURCE_URL REGISTRY VENDOR LICENSES BASE_VERSI
         export "${var?}"
     fi
 done
+
+# ---------------------------------------------------------------------------
+# Push guard
+# ---------------------------------------------------------------------------
+# `docker buildx bake --push` with an unprefixed tag pushes to Docker Hub under
+# the "library" namespace, which fails with a confusing "denied: requested
+# access to the resource is denied". Catch that before spending a build.
+push_requested=0
+for arg in "$@"; do
+    case "${arg}" in
+        --push) push_requested=1 ;;
+        *push=true*) push_requested=1 ;;
+    esac
+done
+
+if [ "${push_requested}" -eq 1 ]; then
+    if [ -z "${REGISTRY:-}" ]; then
+        if [ "${BAKE_ALLOW_DOCKERHUB_PUSH:-0}" != 1 ]; then
+            cat >&2 <<'MSG'
+[bake] ERROR: --push but no image registry is set, so bake would tag the image
+[bake]        "agent-base:latest" and push it to Docker Hub under "library/",
+[bake]        which is almost certainly not yours. Pick one:
+[bake]
+[bake]   REGISTRY=git.example.com/owner ./scripts/bake.sh --push
+[bake]       set it explicitly (env wins over anything derived), or
+[bake]   git remote add origin https://git.example.com/owner/repo.git
+[bake]       let it derive <host>/<owner> from the remote, or
+[bake]   BAKE_ALLOW_DOCKERHUB_PUSH=1 ./scripts/bake.sh --push
+[bake]       really push to Docker Hub (you must be logged in as its owner)
+MSG
+            exit 1
+        fi
+        log "WARNING: pushing to Docker Hub under 'library/' (BAKE_ALLOW_DOCKERHUB_PUSH=1)"
+    else
+        log "pushing to ${REGISTRY} — log in first if you have not: docker login ${REGISTRY%%/*}"
+        case "${REGISTRY}" in
+            */*) ;;
+            *) log "WARNING: REGISTRY='${REGISTRY}' has no namespace; the push target is ${REGISTRY}/agent-base" ;;
+        esac
+    fi
+fi
 
 exec docker buildx bake -f docker-bake.hcl "$@"

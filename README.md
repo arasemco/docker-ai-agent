@@ -211,7 +211,7 @@ running bake, so an OCI-labelled image needs no hand-typed metadata:
 | `GIT_SHA` | `git rev-parse HEAD` | `3439dfb…` |
 | `GIT_REF` | exact tag at HEAD, else branch | `v1.2.0` / `main` |
 | `AUTHOR` | author of the last commit | `Jane Roe <jane@example.org>` |
-| `SOURCE_URL` | `origin` remote, normalised to https | `https://git.example/team/agent-base` |
+| `SOURCE_URL` | the git remote, normalised to https | `https://git.example/team/agent-base` |
 | `REGISTRY` | that remote's host + owner (forge-aware) | `git.example/team`, `ghcr.io/team`, `registry.gitlab.com/team` |
 | `VENDOR` | author's mail domain | `example.org` |
 | `LICENSES` | SPDX id detected in `LICENSE`/`COPYING` | `MIT` |
@@ -221,6 +221,14 @@ Rules:
 
 - **The environment always wins.** `AUTHOR="…" REGISTRY=… scripts/bake.sh --push`
   overrides anything derived.
+- **Which remote** supplies `SOURCE_URL`/`REGISTRY`: `BAKE_REMOTE=<name>` if
+  set, else `origin`, else the first configured remote — a repo whose only
+  remote is called `gitea` or `upstream` works without renaming it.
+- **`--push` requires a registry.** With no `REGISTRY` (derived or explicit)
+  bake would tag `agent-base:latest` and push it to Docker Hub's `library/`
+  namespace, which fails with a confusing `denied: requested access to the
+  resource is denied`. The script refuses up front and prints the three ways
+  forward; `BAKE_ALLOW_DOCKERHUB_PUSH=1` is the explicit opt-in.
 - **`BAKE_DERIVE=0`** disables derivation entirely (leaves bake's defaults: no
   registry, `unknown` metadata), for a fully manual build.
 - **`BAKE_QUIET=1`** silences the one-line summary of what was derived.
@@ -228,6 +236,17 @@ Rules:
   its defaults; no `git` noise.
 
 So on a plain clone of this repo the image is tagged locally
-(`agent-base:1.1.0`); with an `origin` remote set it is tagged for that forge's
-registry (`<host>/<owner>/agent-base:1.1.0`). Optional metadata that stays unset
-renders as `unknown` in the OCI labels.
+(`agent-base:1.1.0`); with a remote set it is tagged for that forge's registry
+(`<host>/<owner>/agent-base:1.1.0`). Optional metadata that stays unset renders
+as `unknown` in the OCI labels.
+
+Pushing needs credentials for that registry first:
+
+```bash
+docker login git.example.com        # or ghcr.io, registry.gitlab.com, …
+scripts/bake.sh --push              # tags + push, derived from the remote
+```
+
+For a Gitea/Forgejo registry the image path is `<host>/<owner>/<image>`, so a
+remote of `https://git.example.com/team/repo.git` yields
+`git.example.com/team/agent-base:1.1.0`.
