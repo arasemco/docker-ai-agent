@@ -10,6 +10,7 @@
 #   proxy.yml    outbound proxy pass-through
 #   limits.yml   CPU/memory limits
 #   mounts.yml   host bind for the workspace
+#   skills.yml   host bind for the global Agent Skills root
 #
 # Usage:
 #   scripts/compose.sh [--with daemon,proxy] [--service NAME] [--file F]... -- <compose args>
@@ -25,6 +26,7 @@
 # Examples:
 #   scripts/compose.sh -- up -d --build                       # base + daemon
 #   scripts/compose.sh --with daemon,proxy,mounts -- up -d     # + proxy + mounts
+#   scripts/compose.sh --with daemon,skills -- up -d            # + shared skills
 #   scripts/compose.sh --file compose/harness.yml -- config    # the test stack
 #
 # A script is needed because `-f` merging only combines services that share a
@@ -63,7 +65,7 @@ done
 # fragments cannot override each other differently depending on the CLI order.
 fragments=(base)
 IFS=',' read -ra requested <<< "${with_list}"
-for wanted in daemon proxy limits mounts; do
+for wanted in daemon proxy limits mounts skills; do
     for item in "${requested[@]}"; do
         [ "${item}" = "${wanted}" ] && fragments+=("${wanted}")
     done

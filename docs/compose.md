@@ -14,6 +14,7 @@
 | `proxy.yml` | proxy variables (`X` → lowercase `x` → `PROXY` → empty) | `--with proxy` |
 | `limits.yml` | `AGENT_CPUS` / `AGENT_MEMORY` | `--with limits` |
 | `mounts.yml` | host bind for the workspace (`AGENT_WORKSPACE_HOST`) | `--with mounts` |
+| `skills.yml` | host bind for the global Agent Skills root (`AGENT_SKILLS_HOST`, read-only) | `--with skills` |
 
 Each fragment declares the volume it mounts, so a composing file never has to
 repeat volume declarations.

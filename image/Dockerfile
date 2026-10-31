@@ -130,6 +130,7 @@ RUN existing_group="$(getent group "${AGENT_GID}" | cut -d: -f1)" \
 #   ~/.docker                  daemon log + XDG_RUNTIME_DIR
 #   ~/.local/bin, ~/.config    CLI installers and XDG config
 #   ~/.ssh, ~/.gitconfig       git identity/credentials, gh auth
+#   ~/.agents/skills           global Agent Skills root (see docs/configuration.md)
 #   /etc/agent-entrypoint.d    sourced hooks (child images COPY into it)
 RUN mkdir -p "/home/${AGENT_USER}/workspace" \
         "/home/${AGENT_USER}/.local/share/docker" \
@@ -139,6 +140,7 @@ RUN mkdir -p "/home/${AGENT_USER}/workspace" \
         "/home/${AGENT_USER}/.ssh" \
         "/home/${AGENT_USER}/.config" \
         "/home/${AGENT_USER}/.cache" \
+        "/home/${AGENT_USER}/.agents/skills" \
         "/etc/agent-entrypoint.d" \
     && chmod 700 "/home/${AGENT_USER}/.ssh" \
     && chown -R "${AGENT_UID}:${AGENT_GID}" "/home/${AGENT_USER}"

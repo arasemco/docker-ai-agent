@@ -21,6 +21,7 @@ All variables are optional; every default works with no configuration.
 | `AGENT_DOCKER_VOLUME` | `agent-docker` | `daemon.yml` | volume (or host path) for daemon data |
 | `AGENT_WORKSPACE_HOST` | `${PWD}/workspace` | `mounts.yml` | host directory bound as the workspace |
 | `AGENT_CPUS` / `AGENT_MEMORY` | `2` / `4G` | `limits.yml` | container limits |
+| `AGENT_SKILLS_HOST` | `${PWD}/skills` | `skills.yml` | host directory mounted as the shared skills root |
 | `AGENT_HOSTNAME` | `agent` | `base.yml` | container hostname |
 | `PROXY`, `HTTP_PROXY`, … | – | `proxy.yml` | see below |
 
@@ -46,6 +47,28 @@ ALL_PROXY   →  all_proxy   →  PROXY  →  (empty)
 | `mounts.yml` | host path | `/home/agent/workspace` |
 
 A child stack adds its own volumes (config/state) in its compose file.
+
+## Skills
+
+Agent Skills are directories holding a `SKILL.md` (YAML frontmatter with
+`name` and `description`) plus optional scripts and resources. Agent-compatible
+CLIs discover them under `~/.agents/skills` and their tool-specific paths, and
+load the body on demand through their `skill` tool.
+
+The image creates `/home/agent/.agents/skills` owned by the agent user. The
+`skills` fragment mounts a host directory there read-only, so one library serves
+every agent container:
+
+```bash
+AGENT_SKILLS_HOST=~/skills scripts/compose.sh --with daemon,skills -- up -d
+```
+
+Read-only is deliberate: a skill may execute its scripts, but it should not
+rewrite the shared library from inside a container. Drop the `:ro` in
+`compose/skills.yml` to allow edits through the agent.
+
+A child image can also ship skills of its own by copying them into
+`/home/agent/.agents/skills`.
 
 ## Hooks
 

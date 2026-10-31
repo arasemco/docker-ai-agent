@@ -10,6 +10,7 @@ edit.
 | `env/proxy.env` | proxy values for a private network (one `PROXY=`, or per-scheme) |
 | `compose/local.yml` | a machine-specific overlay: extra binds, per-host tweaks |
 | `child-image/` | the smallest child image on top of agent-base, plus its stack |
+| `skills/example-skill/` | template for a shared Agent Skill (`SKILL.md`) |
 
 Where the real files live (both gitignored):
 

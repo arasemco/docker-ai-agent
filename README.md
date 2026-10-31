@@ -87,6 +87,7 @@ exactly one thing:
 | `proxy.yml` | outbound proxy: `HTTP_PROXY` → `http_proxy` → `PROXY` → empty (no values baked in) | `--with proxy` |
 | `limits.yml` | CPU/memory from `AGENT_CPUS` / `AGENT_MEMORY` | `--with limits` |
 | `mounts.yml` | bind the workspace to `AGENT_WORKSPACE_HOST` (default `./workspace`) | `--with mounts` |
+| `skills.yml` | bind a shared Agent Skills root to `AGENT_SKILLS_HOST` (default `./skills`, read-only) | `--with skills` |
 
 The root [docker-compose.yml](docker-compose.yml) is the minimal working stack:
 it `include:`s `base`, `daemon` and `image`, so nothing is copied or kept in

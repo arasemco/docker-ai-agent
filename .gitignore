@@ -5,5 +5,6 @@
 .env.local
 compose/local.yml
 data/
-# Default location of the `mounts` fragment's bind source.
+# Default bind sources of the `mounts` and `skills` fragments.
 workspace/
+skills/

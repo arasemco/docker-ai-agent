@@ -1,0 +1,25 @@
+# =============================================================================
+# compose/skills.yml — share a host directory of Agent Skills with the container
+# =============================================================================
+# One fragment, one concern: the global Agent Skills root, mounted from the
+# host so every agent container sees the same set.
+#
+#   AGENT_SKILLS_HOST=~/skills scripts/compose.sh --with daemon,skills -- up -d
+#
+# Skills are directories holding a SKILL.md plus optional scripts and resources;
+# an agent-compatible CLI discovers them under ~/.agents/skills (and its own
+# tool-specific paths). The mount is read-only: a skill may run its scripts, but
+# it must not rewrite the shared library from inside one container. Drop the
+# ":ro" below to allow edits through the agent.
+#
+# The default is ./skills under the directory compose is run from, mirroring the
+# workspace fragment. A path that does not exist is created root-owned by Docker,
+# which is harmless for a read-only mount.
+# =============================================================================
+
+services:
+  agent-base:
+    volumes:
+      # ${PWD} is the directory compose was invoked from, so the default lands
+      # next to the stack regardless of where the fragments live.
+      - ${AGENT_SKILLS_HOST:-${PWD}/skills}:/home/${AGENT_USER:-agent}/.agents/skills:ro
