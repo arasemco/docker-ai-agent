@@ -197,20 +197,37 @@ container).
 | `compose/harness.yml` | this repo's own test stack (builds `image/`) |
 | `examples/` | copy-paste fragments and a child-image example; not used by the build |
 | `docker-bake.hcl` | bake targets, pinned versions, neutral defaults |
-| `scripts/bake.sh` | wraps bake, injects `GIT_SHA`/`GIT_REF`, runs from the repo root |
+| `scripts/bake.sh` | fills the provenance variables from git (see "Publishing") and runs bake from the repo root |
 | `scripts/smoke.sh` | runtime validation in a real container |
 | `makefile` | `build`, `test`, `smoke`, `up`, `down`, `exec`, `debug`, `config` |
 
 ## Publishing
 
-Everything identity-related is opt-in:
+`scripts/bake.sh` fills in the provenance variables from the checkout before
+running bake, so an OCI-labelled image needs no hand-typed metadata:
 
-```bash
-REGISTRY=registry.example/team SOURCE_URL=https://git.example/team/agent-base \
-AUTHOR="Your Name <you@example>" VENDOR=example \
-scripts/bake.sh --push
-```
+| Variable | Derived from | Example |
+|---|---|---|
+| `GIT_SHA` | `git rev-parse HEAD` | `3439dfb…` |
+| `GIT_REF` | exact tag at HEAD, else branch | `v1.2.0` / `main` |
+| `AUTHOR` | author of the last commit | `Jane Roe <jane@example.org>` |
+| `SOURCE_URL` | `origin` remote, normalised to https | `https://git.example/team/agent-base` |
+| `REGISTRY` | that remote's host + owner (forge-aware) | `git.example/team`, `ghcr.io/team`, `registry.gitlab.com/team` |
+| `VENDOR` | author's mail domain | `example.org` |
+| `LICENSES` | SPDX id detected in `LICENSE`/`COPYING` | `MIT` |
+| `BASE_VERSION` | the exact tag at HEAD, when it is `vX.Y.Z` | `1.2.0` |
 
-With no `REGISTRY` the image is tagged locally (`agent-base:1.1.0`); with one it
-becomes `registry.example/team/agent-base:1.1.0`. Optional metadata that is
-left unset renders as `unknown` in the OCI labels.
+Rules:
+
+- **The environment always wins.** `AUTHOR="…" REGISTRY=… scripts/bake.sh --push`
+  overrides anything derived.
+- **`BAKE_DERIVE=0`** disables derivation entirely (leaves bake's defaults: no
+  registry, `unknown` metadata), for a fully manual build.
+- **`BAKE_QUIET=1`** silences the one-line summary of what was derived.
+- Outside a git checkout (a source tarball) nothing is derived and bake runs on
+  its defaults; no `git` noise.
+
+So on a plain clone of this repo the image is tagged locally
+(`agent-base:1.1.0`); with an `origin` remote set it is tagged for that forge's
+registry (`<host>/<owner>/agent-base:1.1.0`). Optional metadata that stays unset
+renders as `unknown` in the OCI labels.
