@@ -1,29 +1,32 @@
 #!/bin/bash
 # =============================================================================
-# agent-run — runs the agent CLI. Executed by /etc/services.d/agent/run as
-# AGENT_USER (never root), after that script has waited for the Docker daemon.
+# agent-run — runs the s6 agent service's launch line as the agent user.
+# Executed by agent-service-start (never by root), after the daemon wait.
 #
-#   AGENT_CMD        CLI to run (image ENV; default bash)
-#   AGENT_WORKSPACE  working directory (image ENV: $HOME/workspace)
-#   /run/agent/args  NUL-separated arguments from the container's CMD, written
-#                    by agent-entrypoint (absent/empty = no arguments)
+#   "$@"              the image's launch line, from services.d/agent/run:
+#                     the executable followed by its arguments, e.g.
+#                     `opencode web --port 4096` or `dsh web`
+#   AGENT_WORKSPACE   working directory (image ENV: $HOME/workspace)
 #
-# Hooks in /etc/agent-entrypoint.d/*.sh are sourced here, before the CLI
-# starts, so they can rewrite "$@" (`set -- web --no-open "$@"`). They run here
-# rather than in cont-init.d because cont-init never sees the container CMD.
+# The first argument is executed; the rest are its arguments. Hooks in
+# /etc/agent-entrypoint.d/*.sh are sourced here, as the agent user and in the
+# workspace, after the executable has been split off, so they rewrite the
+# arguments the CLI receives (`set -- web --no-open "$@"`).
 # =============================================================================
 set -e
+
+if [ "$#" -eq 0 ]; then
+    printf '[agent] %s ERROR: no launch line; services.d/agent/run must name a command\n' \
+        "$(date -u +%Y-%m-%dT%H:%M:%SZ)" >&2
+    exit 2
+fi
 
 : "${AGENT_WORKSPACE:=$HOME/workspace}"
 
 cd "$AGENT_WORKSPACE"
 
-args=()
-if [ -s /run/agent/args ]; then
-    # NUL-separated: survives spaces and newlines in individual arguments.
-    mapfile -d '' -t args < /run/agent/args
-fi
-set -- "${args[@]}"
+cmd="$1"
+shift
 
 shopt -s nullglob
 for hook in /etc/agent-entrypoint.d/*.sh; do
@@ -34,6 +37,6 @@ done
 shopt -u nullglob
 
 printf '[agent] %s handing off to: %s %s\n' \
-    "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "${AGENT_CMD:-bash}" "$*" >&2
+    "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$cmd" "$*" >&2
 
-exec "${AGENT_CMD:-bash}" "$@"
+exec "$cmd" "$@"

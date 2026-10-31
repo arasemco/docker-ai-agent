@@ -5,7 +5,7 @@ The [OpenCode](https://opencode.ai) CLI and Web UI in a container, built on
 Docker daemon, a development toolchain and persistent state.
 
 This repository owns only OpenCode. The sandbox — Debian base, the `agent` user,
-the s6 services, the toolchain, the entrypoint, hooks and the healthcheck —
+the s6 services, the toolchain, hooks and the healthcheck —
 comes from agent-base, pinned by tag in `AGENT_BASE`.
 
 ## Quick start
@@ -27,17 +27,18 @@ make exec       # shell as the agent user (uid 1000)
 make debug      # shell as root
 ```
 
-`make up` and `scripts/compose.sh` assemble the stack from agent-base's compose
-anchors; `docker compose up` alone starts the UI without the daemon grants.
+`make up` builds and starts the stack; the sandbox devices, seccomp options,
+limits and mounts come from the shared compose anchors merged into the service.
 
 ## How it is put together
 
 | Piece | Comes from |
 |---|---|
-| base image (Debian, agent user, s6 services, dockerd, toolchain) | `AGENT_BASE` build arg, default `agent-base:1.4.0` |
+| base image (Debian, agent user, s6 services, dockerd, toolchain) | `AGENT_BASE` build arg, default `agent-base:1.5.0` |
 | OpenCode | `npm install -g opencode-ai@${OPENCODE_VERSION}` in `image/Dockerfile` |
-| sandbox (devices, seccomp, proxy, limits, mounts, skills) | the shared compose anchors via `scripts/compose.sh` |
-| entrypoint, hooks, healthcheck, restart policy | agent-base |
+| launch line (`opencode web ...`) | `image/services.d/agent/run` |
+| sandbox (devices, seccomp, proxy, limits, mounts, skills) | the shared compose anchors in `docker-compose.yml` |
+| s6 services, hooks, healthcheck, restart policy | agent-base |
 
 State lives under `/home/agent`:
 
@@ -66,7 +67,7 @@ config from [examples/config/opencode.jsonc](examples/config/opencode.jsonc).
 |---|---|
 | `image/Dockerfile` | the OpenCode layer on top of agent-base |
 | `docker-compose.yml` | the stack: port, credentials, state volumes |
-| `scripts/compose.sh` | anchor assembler wrapper (agent-base does the work) |
+| `image/services.d/agent/run` | the launch line the s6 agent service uses |
 | `scripts/bake.sh` | builds and tags the image, deriving provenance from git |
 | `scripts/smoke.sh` | runtime check of a running stack |
 | `docker-bake.hcl` | bake targets, pins, OCI labels |

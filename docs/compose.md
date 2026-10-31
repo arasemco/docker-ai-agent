@@ -8,7 +8,7 @@ YAML anchors, grouped by concern, and each service merges the ones it needs:
 | Anchor | Concern | Knobs |
 |---|---|---|
 | `x-sandbox` | `init`/tty/restart, seccomp exceptions, `/dev/fuse` + `/dev/net/tun`, resource limits | `AGENT_HOSTNAME`, `AGENT_CPUS`, `AGENT_MEMORY` |
-| `x-agent-env` | `AGENT_*` toggles and proxy pass-through, merged into each service's `environment` | `AGENT_DOCKERD*`, `AGENT_RESTART_MAX`, `PROXY`/`HTTP_PROXY`/… |
+| `x-agent-env` | `AGENT_*` toggles and proxy resolution, merged into each service's `environment` | `AGENT_DOCKERD*`, `AGENT_RESTART_MAX`, `PROXY`/`HTTP_PROXY`/`HTTPS_PROXY`/`ALL_PROXY`/`NO_PROXY` |
 | `x-docker` | the inner daemon's data volume | `AGENT_DOCKER_VOLUME` |
 | `x-skills` | the shared Agent Skills root, read-only | `AGENT_SKILLS_HOST` |
 
@@ -32,6 +32,17 @@ opencode:
     - *skills-volume
     - ${OPENCODE_CONFIG_HOST:-opencode-config}:/home/agent/.config/opencode
 ```
+
+## No commands in the compose file
+
+A service carries build, environment, ports and volumes; it does not carry a
+`command:`. Each stack image defines its own launch line in its s6 agent
+service (`stacks/<name>/image/services.d/agent/run`), so `docker compose
+--profile <name> up` starts exactly what the image says it starts. A runtime
+`command:` is not the launch line either: s6-overlay runs the container `CMD` as
+a separate foreground command after the services start. The image is the only
+place the agent's launch line lives. The `base` profile keeps the sandbox up
+because the base image's agent service launches `agent-idle`.
 
 ## Profiles
 

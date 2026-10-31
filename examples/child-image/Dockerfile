@@ -4,13 +4,13 @@
 # =============================================================================
 # Everything shared — Debian base, the agent user, s6 supervision, the rootless
 # Docker daemon, the toolchain, hooks and healthcheck — comes from agent-base.
-# A child adds only its CLI, its config and its default command.
+# A child adds only its CLI, its config and its default launch line.
 #
 # Copy this directory somewhere and adjust:
 #   docker compose build && docker compose up -d
 # =============================================================================
 
-ARG AGENT_BASE=agent-base:1.4.0
+ARG AGENT_BASE=agent-base:1.5.0
 FROM ${AGENT_BASE}
 
 # Pin the CLI exactly; a dist-tag would float. Replace this with the package
@@ -24,12 +24,15 @@ RUN npm install --global --no-fund --no-audit --no-update-notifier "example-cli@
 RUN install -d -o 1000 -g 1000 "/home/agent/.config/example-cli" \
     && chown -R 1000:1000 "/home/agent/.config"
 
-# Optional: drop extra entrypoint hooks here (sourced before the CLI starts).
+# Optional: drop extra agent hooks here (sourced before the CLI starts).
 # COPY hooks/ /etc/agent-entrypoint.d/
 
-# The default command. The container's CMD becomes this CLI's arguments, e.g.
-# `docker compose run example-cli --help` → `example-cli --help`.
-ENV AGENT_CMD=example-cli
+# The s6 agent service's launch line: the executable, then any arguments. It
+# replaces the base image's run script, so the image — not the compose file or a
+# container command — decides what runs. See the real stacks:
+# stacks/opencode/image/services.d/agent/run,
+# stacks/deepseek-harness/image/services.d/agent/run.
+COPY services.d/agent/run /etc/services.d/agent/run
 
 # NOTE: no `USER` switch. s6-overlay's /init is PID 1 as root and drops to the
 # agent user per service; the CLI itself still runs unprivileged.

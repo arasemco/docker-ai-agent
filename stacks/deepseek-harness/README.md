@@ -6,7 +6,7 @@ s6-supervised sandbox with a rootless Docker daemon, a development toolchain and
 persistent state.
 
 This repository owns dsh. The sandbox — Debian base, agent user, s6 services,
-toolchain, entrypoint, hooks and healthcheck — comes from agent-base, pinned by
+toolchain, s6 services, hooks and healthcheck — comes from agent-base, pinned by
 tag in `AGENT_BASE`. Two things are dsh-specific and live here: Node 22 (the base
 ships Node 18, dsh needs ≥22.19) and the healthcheck that proves an authenticated
 request succeeds.
@@ -47,12 +47,13 @@ intends. This is Linux-only; on Docker Desktop run dsh on the host instead. See
 
 | Piece | Comes from |
 |---|---|
-| base image (Debian, agent user, s6 services, dockerd, toolchain) | `AGENT_BASE`, default `agent-base:1.4.1` |
+| base image (Debian, agent user, s6 services, dockerd, toolchain) | `AGENT_BASE`, default `agent-base:1.5.0` |
 | Node 22 | compiled from the official source tarball (`NODE_VERSION`, `NODE_SHA256`) |
 | dsh | `npm install -g @deepseek-ai/dsh@${DSH_VERSION}` |
-| flag translation (`DSH_*` → `dsh web` options) | `image/hooks/20-dsh-flags.sh`, sourced by agent-base's agent service |
+| launch line (`dsh web`) | `image/services.d/agent/run` |
+| flag translation (`DSH_*` → `dsh web` options) | `image/hooks/20-dsh-flags.sh`, sourced by agent-run |
 | healthcheck | `image/healthcheck.mjs` (signed session cookie, expects 200) |
-| sandbox settings (devices, seccomp, proxy, limits, mounts, skills) | the shared compose anchors via `scripts/compose.sh` |
+| sandbox settings (devices, seccomp, proxy, limits, mounts, skills) | the shared compose anchors in `docker-compose.yml` |
 
 State lives in the `dsh-home` volume (`/home/agent/.dsh`): profiles, credentials
 written by the UI, and session history.
@@ -74,7 +75,7 @@ written by the UI, and session history.
 | `image/healthcheck.mjs` | authenticated healthcheck |
 | `image/hooks/20-dsh-flags.sh` | `DSH_*` → CLI flag translation |
 | `docker-compose.yml` | host networking, credentials, `DSH_*` |
-| `scripts/compose.sh` | anchor assembler wrapper (agent-base does the work) |
+| `image/services.d/agent/run` | the launch line the s6 agent service uses |
 | `scripts/bake.sh` | builds and tags the image, deriving provenance from git |
 | `scripts/smoke.sh` | runtime check of a running stack |
 | `docker-bake.hcl` | bake targets, pins, OCI labels |

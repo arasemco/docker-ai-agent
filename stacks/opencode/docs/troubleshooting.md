@@ -3,7 +3,7 @@
 ## The UI does not answer
 
 1. Is the container running? `docker compose ps` (or `make ps`).
-2. What does it say? `make logs` — the `[agent]` and `[entrypoint]` lines show
+2. What does it say? `make logs` — the `[agent]` and s6 lines show
    what was executed and whether it exited.
 3. Is the port taken? Publishing `4096` fails if another stack already uses it;
    set `OPENCODE_PORT` to a free one.

@@ -24,8 +24,8 @@ agent CLI in this repository, and there should never be one.
 
 | Path | What lives there | Safe to change? |
 |---|---|---|
-| `image/Dockerfile` | the image: base, packages, user, s6, entrypoint wiring | yes, but check pinned digests |
-| `image/rootfs/` | files copied into the image (entrypoint, services, cont-init, hooks dir) | yes |
+| `image/Dockerfile` | the image: base, packages, user, s6, service wiring | yes, but check pinned digests |
+| `image/rootfs/` | files copied into the image (service launcher, services, cont-init, hooks dir) | yes |
 | `docker-compose.yml` | anchored sandbox/env/volume sections + one service per stack | yes |
 | `stacks/<name>/image/` | one agent CLI layer per stack (Dockerfile + files) | yes |
 | `stacks/<name>/docs/`, `examples/` | stack-specific documentation and starting points | yes |
@@ -43,7 +43,7 @@ agent CLI in this repository, and there should never be one.
    `grep -rniE "asemo|omesa|[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+|/home/[a-z]+/" image compose docker-compose.yml scripts docker-bake.hcl makefile README.md`
 2. **No `USER` in child images.** `/init` must stay PID 1 as root; services drop
    to the agent user with `/command/s6-setuidgid`. Ending the image with
-   `USER 1000:1000` breaks the entrypoint.
+   `USER 1000:1000` breaks the s6 supervision tree.
 3. **Fragments stay single-purpose.** A anchor may only own the keys its
    concern needs. `image.yml` builds; it does not set `command` or mounts.
    `daemon.yml` owns the daemon's devices and volume; nothing else.

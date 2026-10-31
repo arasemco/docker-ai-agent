@@ -53,14 +53,11 @@ done
 chmod 0700 "${agent_home}/.docker/run"
 chmod 0700 "${agent_home}/.ssh"
 
-# /run/agent carries the CMD args and restart bookkeeping; the agent service
-# runs as AGENT_USER and must be able to read it.
+# /run/agent carries the restart bookkeeping written by the agent service and
+# its finish script, which run as root; 0755 keeps it readable for diagnostics.
 mkdir -p /run/agent
 chown "${agent_uid}:${agent_gid}" /run/agent
 chmod 0755 /run/agent
-if [ -f /run/agent/args ]; then
-    chmod 0644 /run/agent/args
-fi
 
 # ---------------------------------------------------------------------------
 # Subordinate id ranges for the inner rootless daemon

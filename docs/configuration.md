@@ -6,8 +6,7 @@ All variables are optional; every default works with no configuration.
 
 | Variable | Default | Read by | Meaning |
 |---|---|---|---|
-| `AGENT_CMD` | `bash` | `agent` service | command the service execs |
-| `AGENT_WORKSPACE` | `$HOME/workspace` | entrypoint, `agent-run` | working directory; must be writable |
+| `AGENT_WORKSPACE` | `$HOME/workspace` | `agent-run` | working directory; must be writable |
 | `AGENT_DOCKERD` | `1` | `dockerd` service | `0` keeps the daemon down (agent still runs) |
 | `AGENT_DOCKERD_TIMEOUT` | `30` | `agent` service | seconds to wait for daemon readiness |
 | `AGENT_DOCKERD_MAX_RESTARTS` | `3` | `dockerd` service | failed starts in a row before idling |
@@ -24,20 +23,44 @@ All variables are optional; every default works with no configuration.
 | `AGENT_SKILLS_HOST` | `${PWD}/skills` | `skills.yml` | host directory mounted as the shared skills root |
 | `AGENT_HOSTNAME` | `agent` | `base.yml` | container hostname |
 | `AGENT_SUBID_REMAP` | `1` | `cont-init.d/10-prepare` | rewrite `/etc/subuid`/`subgid` into the ids this container can reach |
-| `PROXY`, `HTTP_PROXY`, … | – | `proxy.yml` | see below |
+| `PROXY`, `HTTP_PROXY`, `HTTPS_PROXY`, `ALL_PROXY`, `NO_PROXY`, `http_proxy`, `https_proxy`, `all_proxy`, `no_proxy` | – | `x-agent-env` | see [Proxy](#proxy) |
 
-## Proxy resolution
+## Launch line
 
-`proxy.yml` resolves each variable independently, first match wins:
+What the agent service runs is decided by the image, not by the compose file and
+not by an environment variable: `/etc/services.d/agent/run` names the executable
+and its arguments, then calls `agent-service-start`. The base image launches
+`agent-idle`; the OpenCode and dsh images launch their CLI (`opencode web …`,
+`dsh web`). A container `CMD` is not forwarded to the CLI: s6-overlay runs it as
+a one-off foreground command once the services are up, then halts the container.
+Use `docker exec` to work with the running agent.
+
+## Proxy
+
+The `x-agent-env` anchor resolves each proxy variable itself, first match wins:
 
 ```
-HTTP_PROXY  →  http_proxy  →  PROXY  →  (empty)
-HTTPS_PROXY →  https_proxy →  PROXY  →  (empty)
-ALL_PROXY   →  all_proxy   →  PROXY  →  (empty)
+HTTP_PROXY   -> http_proxy  -> PROXY -> (empty)
+HTTPS_PROXY  -> https_proxy -> PROXY -> (empty)
+ALL_PROXY    -> all_proxy   -> PROXY -> (empty)
+http_proxy   -> HTTP_PROXY  -> PROXY -> (empty)
+https_proxy  -> HTTPS_PROXY -> PROXY -> (empty)
+all_proxy    -> ALL_PROXY   -> PROXY -> (empty)
 ```
 
-`NO_PROXY` has no `PROXY` fallback; when neither case is set it defaults to
-`localhost,127.0.0.1,::1` so local endpoints are never sent to the proxy.
+That is the variable itself, then the other case of the same knob (tools
+disagree about which one they read), then one generic `PROXY` value, then
+nothing. A network with a single proxy therefore needs one `PROXY=...` line,
+not eight; an explicitly set per-scheme variable wins over it.
+
+`NO_PROXY` is not a proxy address, so it has no `PROXY` fallback: when neither
+case is set it defaults to `localhost,127.0.0.1,::1`, because with a proxy
+configured and `NO_PROXY` empty a request to the container's own loopback would
+be sent to the proxy and fail. Each case fills the other (`NO_PROXY`/`no_proxy`).
+
+`ALL_PROXY` is also the standard catch-all some clients read directly, but it is
+not a substitute for `PROXY` here: setting only `ALL_PROXY` leaves the
+scheme-specific variables empty.
 
 ## Volumes
 
@@ -87,9 +110,9 @@ export variables the CLI reads. Keep hooks non-fatal: `set -e` is active.
 
 | Mode | Passes when |
 |---|---|
-| `auto` | `AGENT_HEALTH_URL` answers (if set) and `AGENT_CMD` is running; a dead daemon only warns |
+| `auto` | `AGENT_HEALTH_URL` answers (if set) and the s6 `agent` service is up; a dead daemon only warns |
 | `docker` | `docker info` answers (strict) |
-| `agent` | the `AGENT_CMD` process exists |
+| `agent` | the s6 `agent` service is up |
 | `url:<url>` | an HTTP GET succeeds |
 | `off` | always |
 

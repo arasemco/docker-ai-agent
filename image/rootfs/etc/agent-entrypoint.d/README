@@ -1,9 +1,9 @@
-# Entrypoint hooks
+# Agent hooks
 
 Every file matching `*.sh` in this directory is **sourced** by `agent-run`
 after the rootless Docker daemon is ready and before the agent CLI starts (see
-`/usr/local/bin/agent-run`). Being sourced, a hook can change the argument list
-the CLI is finally called with:
+`/usr/local/bin/agent-run`). The executable has already been split off the
+launch line, so a hook changes the argument list the CLI is finally called with:
 
 ```bash
 # /etc/agent-entrypoint.d/20-web-flags.sh

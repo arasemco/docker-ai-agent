@@ -30,10 +30,13 @@ Each stack has its own documentation next to its image:
 `image/` builds Debian 12 with Node/npm from Debian, an `agent` user at
 uid/gid 1000, docker-ce rootless, Python/uv/yq and a build toolchain. `s6-overlay`
 is PID 1 and runs two longruns: `dockerd` (announces readiness when the API
-answers) and `agent` (waits for that, then execs `$AGENT_CMD`). `docker-compose.yml`
-defines the shared sandbox as YAML anchors and one service per stack, behind a
-profile; `docker compose --profile <name> up` starts exactly one stack. A stack
-image only needs `FROM`, its CLI, and `ENV AGENT_CMD`.
+answers) and `agent` (waits for that, then runs the launch line named by its
+run script). `docker-compose.yml` defines the shared sandbox as YAML anchors and
+one service per stack, behind a profile; `docker compose --profile <name> up`
+starts exactly one stack. A stack image needs `FROM`, its CLI, and its own
+`services.d/agent/run` naming the executable — the compose file carries no
+`command:`; s6 runs a container `CMD` as a separate foreground command, not as
+the CLI's arguments.
 
 ## Conventions used throughout
 
@@ -43,6 +46,6 @@ image only needs `FROM`, its CLI, and `ENV AGENT_CMD`.
 - **Child image** — an image built `FROM agent-base`, adding one agent CLI.
 - **Agent user** — the unprivileged account (`agent`, uid/gid 1000) that both
   services run as; the container's PID 1 stays root.
-- **`AGENT_*`** — variables read by the image/entrypoint (`AGENT_CMD`,
-  `AGENT_WORKSPACE`, `AGENT_DOCKERD`, …). Everything under `image/` is generic;
+- **`AGENT_*`** — variables read by the image and its s6 services (`AGENT_WORKSPACE`,
+  `AGENT_DOCKERD`, `AGENT_RESTART_MAX`, …). Everything under `image/` is generic;
   values for a particular host belong in `.env` or `compose/local.yml`.

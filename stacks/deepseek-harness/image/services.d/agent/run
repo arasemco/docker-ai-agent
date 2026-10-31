@@ -1,0 +1,12 @@
+#!/command/with-contenv bash
+# =============================================================================
+# services.d/agent/run — dsh's default launch line.
+#
+# Replaces the base image's run script: `dsh web` is what this stack starts, and
+# the compose file carries no command. The DSH_* environment variables become
+# flags in 20-dsh-flags.sh, which agent-run sources, so the flags are not
+# repeated here.
+# =============================================================================
+set -euo pipefail
+
+exec /usr/local/bin/agent-service-start dsh web

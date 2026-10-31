@@ -4,13 +4,12 @@
 # =============================================================================
 # This image adds only OpenCode to the shared sandbox provided by agent-base:
 # the Debian base, the agent user, s6 supervision, the rootless Docker daemon,
-# the toolchain, the entrypoint and the healthcheck all come from there.
+# the toolchain and the healthcheck all come from there.
 #
 # Contents:
 #   * opencode-ai from npm, pinned to an exact version
 #   * its state directories, owned by the agent user
-#   * AGENT_CMD=opencode, so the base's agent service runs it with the arguments
-#     from the compose `command:`
+#   * services.d/agent/run, the s6 service's launch line (`opencode web ...`)
 #
 # No provider configuration is baked in: which providers exist and where they
 # run is deployment-specific. See ../examples/config/.
@@ -19,7 +18,7 @@
 # The shared base, pinned to a tag so a rebuild is reproducible. Without a
 # registry prefix this resolves to a locally built image; override AGENT_BASE to
 # use a pushed one.
-ARG AGENT_BASE=agent-base:1.4.0
+ARG AGENT_BASE=agent-base:1.5.0
 FROM ${AGENT_BASE} AS opencode
 
 # Exact opencode-ai version (`npm view opencode-ai versions`); a dist-tag would
@@ -48,8 +47,8 @@ RUN install -d -o 1000 -g 1000 \
 # No USER switch: s6-overlay's /init is PID 1 as root and drops to the agent
 # user per service. The CLI itself runs unprivileged.
 
-# The base's entrypoint hands the container CMD to this command, so the compose
-# `command:` supplies the subcommand and flags.
-ENV AGENT_CMD=opencode
+# The stack's launch line lives in the image, not in the compose file: this
+# replaces the base image's services.d/agent/run with `opencode web ...`.
+COPY --chmod=755 services.d/agent/run /etc/services.d/agent/run
 
 EXPOSE 4096

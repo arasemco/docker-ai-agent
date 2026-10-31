@@ -1,0 +1,59 @@
+#!/bin/bash
+# =============================================================================
+# agent-service-start — shared launcher for the s6 `agent` service.
+#
+# Called as root by /etc/services.d/agent/run: the base image's copy, or the one
+# a child image replaces to name its CLI. The arguments are the service's whole
+# launch line — the executable and its arguments:
+#
+#     agent-service-start /usr/local/bin/agent-idle          # base image
+#     agent-service-start opencode web --port 4096           # OpenCode image
+#     agent-service-start dsh web                            # dsh image
+#
+# The script waits (bounded) for the dockerd service to announce readiness,
+# records the start time used by the restart policy in services.d/agent/finish,
+# then drops to AGENT_USER and hands the line to agent-run, which sources the
+# hooks and execs it. s6 owns the process tree throughout: this makes no
+# decision about what runs.
+#
+# Environment (from the s6 service, through with-contenv):
+#   AGENT_USER             account the CLI runs as
+#   AGENT_DOCKERD          0 to skip the readiness wait
+#   AGENT_DOCKERD_TIMEOUT  seconds to wait for readiness
+# =============================================================================
+set -euo pipefail
+
+log() {
+    printf '[agent] %s %s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$*" >&2
+}
+
+if [ "$#" -eq 0 ]; then
+    log "ERROR: no launch line; services.d/agent/run must name a command"
+    exit 2
+fi
+
+AGENT_USER="${AGENT_USER:-agent}"
+: "${AGENT_DOCKERD:=1}"
+: "${AGENT_DOCKERD_TIMEOUT:=30}"
+
+if [ "${AGENT_DOCKERD}" != "0" ]; then
+    # The service dir is created by s6's legacy-services stage, which may run a
+    # fraction after this one; wait for the symlink rather than failing.
+    for _ in $(seq 1 50); do
+        [ -e /run/service/dockerd ] && break
+        sleep 0.1
+    done
+    if [ -e /run/service/dockerd ]; then
+        # s6-svwait -t is in milliseconds, while AGENT_DOCKERD_TIMEOUT is in
+        # seconds.
+        if ! /command/s6-svwait -U -t "$(( AGENT_DOCKERD_TIMEOUT * 1000 ))" /run/service/dockerd 2>/dev/null; then
+            log "WARNING: dockerd did not report ready within ${AGENT_DOCKERD_TIMEOUT}s; starting the agent anyway (docker may be unavailable)"
+        fi
+    else
+        log "WARNING: no dockerd service registered; starting the agent without waiting"
+    fi
+fi
+
+date +%s > /run/agent/agent.started 2>/dev/null || true
+
+exec /command/s6-setuidgid "${AGENT_USER}" /usr/local/bin/agent-run "$@"

@@ -3,7 +3,7 @@
 # dsh — the DeepSeek Harness (dsh) Web UI on top of agent-base
 # =============================================================================
 # agent-base provides the sandbox: Debian base, agent user, s6 services, rootless
-# Docker daemon, toolchain, entrypoint, hooks and healthcheck. This image adds
+# Docker daemon, toolchain, hooks and healthcheck. This image adds
 # what dsh needs on top:
 #
 #   * Node 22 — agent-base ships Debian's Node 18.20, while @deepseek-ai/dsh
@@ -13,6 +13,7 @@
 #     third-party apt repository.
 #   * @deepseek-ai/dsh from npm, pinned to an exact version.
 #   * The hook that turns DSH_* variables into `dsh web` options.
+#   * services.d/agent/run, the s6 service's launch line (`dsh web`).
 #   * A healthcheck that proves the UI answers an authenticated request.
 #
 # dsh is loopback-only by design: its web server refuses wildcard bind addresses
@@ -20,7 +21,7 @@
 # the UI answers on the host's own loopback; see docs/configuration.md.
 # =============================================================================
 
-ARG AGENT_BASE=agent-base:1.4.1
+ARG AGENT_BASE=agent-base:1.5.0
 
 # Official Node 22 image, used only as the source of the runtime. Pinned by
 # digest; it is the same glibc distribution as agent-base, so the binary needs no
@@ -69,16 +70,19 @@ RUN install -d -o 1000 -g 1000 -m 700 "/home/agent/.dsh"
 # until a browser signs in through the launch token.
 COPY --chmod=644 healthcheck.mjs /usr/local/lib/dsh-healthcheck.mjs
 
-# Flag translation runs as an agent-entrypoint hook, before the CLI starts, and
-# rewrites the argument list (`web` becomes `web --no-open --port …`).
+# Flag translation runs as a hook, before the CLI starts, and rewrites the
+# argument list (`web` becomes `web --no-open --port …`).
 COPY --chmod=755 hooks/20-dsh-flags.sh /etc/agent-entrypoint.d/20-dsh-flags.sh
+
+# The stack's launch line lives in the image, not in the compose file: this
+# replaces the base image's services.d/agent/run with `dsh web`.
+COPY --chmod=755 services.d/agent/run /etc/services.d/agent/run
 
 ENV DSH_HOME=/home/agent/.dsh \
     DSH_WORKSPACE=/home/agent/workspace \
     DSH_PORT=3080 \
     DSH_PACKAGE=/usr/local/lib/node_modules/@deepseek-ai/dsh/package.json \
-    AGENT_WORKSPACE=/home/agent/workspace \
-    AGENT_CMD=dsh
+    AGENT_WORKSPACE=/home/agent/workspace
 
 # Loopback-only, reachable through host networking (see the compose file);
 # EXPOSE documents the port for readers and tooling.

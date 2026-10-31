@@ -21,11 +21,12 @@ services:
       context: .
       dockerfile: Dockerfile
       args:
-        AGENT_BASE: ${AGENT_BASE:-agent-base:1.4.1}
+        AGENT_BASE: ${AGENT_BASE:-agent-base:1.5.0}
         CLI_VERSION: ${CLI_VERSION:-1.0.0}
     hostname: example-cli
-    # Args for AGENT_CMD (the image sets it to example-cli).
-    command: ["--help"]
+    # No command: the image's s6 agent service defines what the CLI runs (see
+    # the Dockerfile). A `command:` here would be run by s6 as a separate
+    # foreground command, not passed to the CLI.
     volumes:
       # The CLI's own state. Named volume by default so its ownership matches
       # the image's agent user; point the variable at a host path to bind.

@@ -1,0 +1,10 @@
+#!/bin/bash
+# =============================================================================
+# agent-idle — the base image's launch line for the s6 `agent` service.
+#
+# The base image ships no CLI, and nothing else may fix what its agent service
+# runs: a shell would exit as soon as its stdin closes, which stops the s6 tree.
+# The service therefore supervises this idler, and a child image replaces the
+# service's run script with its own CLI (see stacks/*/image/services.d/agent/run).
+# =============================================================================
+exec sleep infinity

@@ -14,9 +14,14 @@
 #
 # Anchors:
 #   x-sandbox     init/tty/restart, seccomp exceptions, devices, resource limits
-#   x-agent-env   AGENT_* toggles and proxy pass-through shared by every service
+#   x-agent-env   AGENT_* toggles and proxy resolution shared by every service
 #   x-docker      the inner daemon's data volume
 #   x-skills      the shared Agent Skills root (read-only)
+#
+# Services carry build, environment, ports and volumes only. What each stack
+# runs — `opencode web ...`, `dsh web` — is the image's own concern, defined by
+# its s6 agent service (services.d/agent/run), so there are no `command:` keys
+# here.
 # =============================================================================
 
 name: agent
@@ -47,24 +52,31 @@ x-sandbox: &sandbox
 # Merged into each service's environment mapping (`<<: *agent-env`), so a stack
 # adds its own variables without restating these.
 #
-# Proxy variables are pass-through: empty unless set, one PROXY value covers
-# every scheme, and a per-scheme variable wins over it. NO_PROXY defaults to
-# loopback when neither case is set, so local endpoints never go to the proxy.
+# Proxy variables are resolved here, first match wins per variable:
+#
+#     HTTP_PROXY  -> http_proxy  -> PROXY  -> (empty)
+#     HTTPS_PROXY -> https_proxy -> PROXY  -> (empty)
+#     ALL_PROXY   -> all_proxy   -> PROXY  -> (empty)
+#     http_proxy  -> HTTP_PROXY  -> PROXY  -> (empty)   (and so on)
+#
+# Either case fills the other because tools disagree about which one they read,
+# and one PROXY value covers every scheme. NO_PROXY is not a proxy address: it
+# has no PROXY fallback, only the loopback default, so local endpoints never go
+# to the proxy.
 x-agent-env: &agent-env
   AGENT_WORKSPACE: /home/agent/workspace
   AGENT_DOCKERD: "${AGENT_DOCKERD:-1}"
   AGENT_DOCKERD_TIMEOUT: "${AGENT_DOCKERD_TIMEOUT:-30}"
   AGENT_DOCKERD_MAX_RESTARTS: "${AGENT_DOCKERD_MAX_RESTARTS:-3}"
   AGENT_RESTART_MAX: "${AGENT_RESTART_MAX:-3}"
-  PROXY: "${PROXY:-}"
-  HTTP_PROXY: "${HTTP_PROXY:-}"
-  HTTPS_PROXY: "${HTTPS_PROXY:-}"
-  ALL_PROXY: "${ALL_PROXY:-}"
-  NO_PROXY: "${NO_PROXY:-localhost,127.0.0.1,::1}"
-  http_proxy: "${http_proxy:-}"
-  https_proxy: "${https_proxy:-}"
-  all_proxy: "${all_proxy:-}"
-  no_proxy: "${no_proxy:-localhost,127.0.0.1,::1}"
+  HTTP_PROXY: "${HTTP_PROXY:-${http_proxy:-${PROXY:-}}}"
+  HTTPS_PROXY: "${HTTPS_PROXY:-${https_proxy:-${PROXY:-}}}"
+  ALL_PROXY: "${ALL_PROXY:-${all_proxy:-${PROXY:-}}}"
+  NO_PROXY: "${NO_PROXY:-${no_proxy:-localhost,127.0.0.1,::1}}"
+  http_proxy: "${http_proxy:-${HTTP_PROXY:-${PROXY:-}}}"
+  https_proxy: "${https_proxy:-${HTTPS_PROXY:-${PROXY:-}}}"
+  all_proxy: "${all_proxy:-${ALL_PROXY:-${PROXY:-}}}"
+  no_proxy: "${no_proxy:-${NO_PROXY:-localhost,127.0.0.1,::1}}"
 
 # --- volumes ---------------------------------------------------------------
 # A named volume, not a bind mount: the daemon's data holds files owned by
@@ -79,8 +91,8 @@ x-skills: &skills-volume "${AGENT_SKILLS_HOST:-${PWD}/skills}:/home/agent/.agent
 
 services:
   # -------------------------------------------------------------------------
-  # Sandbox only: the base image with no agent CLI. Its default command is a
-  # shell, which exits immediately without a TTY, so keep it up for exec.
+  # Sandbox only: the base image ships no agent CLI, so its agent service
+  # launches agent-idle and the container stays up for exec.
   # -------------------------------------------------------------------------
   agent-base:
     profiles: ["base"]
@@ -97,7 +109,6 @@ services:
         AGENT_GID: ${AGENT_GID:-1000}
         DOCKER_VERSION: ${DOCKER_VERSION:-29.8.1}
         UV_VERSION: ${UV_VERSION:-0.13.6}
-    command: ["-lc", "sleep infinity"]
     environment:
       <<: *agent-env
     volumes:
@@ -117,18 +128,16 @@ services:
       dockerfile: Dockerfile
       target: opencode
       args:
-        AGENT_BASE: ${AGENT_BASE:-agent-base:1.4.1}
+        AGENT_BASE: ${AGENT_BASE:-agent-base:1.5.0}
         OPENCODE_VERSION: ${OPENCODE_VERSION:-1.19.5}
     hostname: opencode
-    # --hostname 0.0.0.0 makes the published port reachable inside the
-    # container; exposure is controlled by the binding below.
-    command: ["web", "--port", "${OPENCODE_PORT:-4096}", "--hostname", "0.0.0.0"]
     ports:
       # Loopback by default: the password has a weak fallback. Set
       # OPENCODE_BIND_IP=0.0.0.0 to publish on the LAN.
       - "${OPENCODE_BIND_IP:-127.0.0.1}:${OPENCODE_PORT:-4096}:${OPENCODE_PORT:-4096}"
     environment:
       <<: *agent-env
+      OPENCODE_PORT: "${OPENCODE_PORT:-4096}"
       OPENCODE_SERVER_PASSWORD: "${OPENCODE_SERVER_PASSWORD:-changeme123}"
       ANTHROPIC_API_KEY: "${ANTHROPIC_API_KEY:-}"
       OPENAI_API_KEY: "${OPENAI_API_KEY:-}"
@@ -164,11 +173,10 @@ services:
       # "test" needs a BuildKit secret; only the bake target produces it.
       target: runtime
       args:
-        AGENT_BASE: ${AGENT_BASE:-agent-base:1.4.1}
+        AGENT_BASE: ${AGENT_BASE:-agent-base:1.5.0}
         DSH_VERSION: ${DSH_VERSION:-0.2.1-rc.5}
         NODE_REF: ${NODE_REF:-docker.io/library/node:22-bookworm-slim@sha256:4b150b48b4116e2a22f2c39cc27025fbf4f153e2078fd3b14d159fdb5c7279da}
     network_mode: host
-    command: ["web"]
     environment:
       <<: *agent-env
       DSH_PORT: "${DSH_PORT:-3080}"

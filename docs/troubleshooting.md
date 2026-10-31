@@ -39,15 +39,19 @@ mount point when it can.
 
 ## The container exits immediately
 
-The `agent` service runs `$AGENT_CMD`; with no command it runs a shell that
-exits without a TTY. A stack that should stay up sets a command — the root
-The `base` profile uses `bash -lc 'sleep infinity'` for exactly that reason.
+The `agent` service ran the image's launch line and it returned; when it exits
+cleanly, the container stops. The base image's line is the idle helper, so it
+stays up; a stack's line is its CLI (`opencode web`, `dsh web`), and a fast
+crash there is a CLI problem, not a compose one. Check the `[agent]` log line
+and, for a stack, `image/services.d/agent/run`. A container `CMD` is run by s6
+as a one-off foreground command after the services start, so it cannot stand in
+for the launch line.
 
 ## The container is "unhealthy" but the CLI works
 
 `AGENT_HEALTHCHECK=auto` only warns when the daemon is down; a persistent
-unhealthy status means the CLI process is not running — check
-`scripts/smoke.sh` output or `/run/agent/exit-code`.
+unhealthy status means the s6 `agent` service is down — check
+`/command/s6-svstat /run/service/agent` and `/run/agent/exit-code`.
 
 ## Port already in use
 

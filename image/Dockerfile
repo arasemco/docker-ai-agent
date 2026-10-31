@@ -18,21 +18,22 @@
 #         so the agent can run `docker` without --privileged, restarted on
 #         crash and announcing readiness through s6's notification fd;
 #       - agent: the CLI itself, run as AGENT_USER, restarted on crash up to a
-#         limit, and stopping the container when it exits cleanly.
+#         limit, and stopping the container when it exits cleanly. The service
+#         defines the launch line: no arguments in this image, a CLI's
+#         subcommand and flags in a child image.
 #     Keeping them separate means a crash in one does not stop the other, and
 #     each has its own restart policy. Hooks run before the CLI starts.
 #   * Python 3 + uv, Node/npm, yq, git/gh, a native build toolchain and the GNU
 #     userland tools agents expect, all from a package manager.
-#   * An entrypoint wrapper (stores the container CMD for the agent service,
-#     then execs s6's /init) and agent-healthcheck.
+#   * agent-healthcheck, which reports whether the s6 agent service is up.
 #
 # Agent-specific parts do not belong here. A child image adds its CLI, its
-# config and its default command (see ../examples/child-image/):
+# config and its launch line (see ../examples/child-image/):
 #
-#     FROM agent-base:1.4.0
+#     FROM agent-base:1.5.0
 #     ARG CLI_VERSION=1.0.0
 #     RUN npm install --global "some-agent-cli@${CLI_VERSION}"
-#     ENV AGENT_CMD=some-agent-cli
+#     COPY services.d/agent/run /etc/services.d/agent/run
 #     COPY hooks/ /etc/agent-entrypoint.d/
 # =============================================================================
 
@@ -299,7 +300,6 @@ ENV AGENT_WORKSPACE=${HOME}/workspace \
     AGENT_DOCKERD_TIMEOUT=30 \
     AGENT_DOCKERD_MAX_RESTARTS=3 \
     AGENT_RESTART_MAX=3 \
-    AGENT_CMD=bash \
     AGENT_HEALTHCHECK=auto
 # dockerd-rootless.sh only needs XDG_RUNTIME_DIR set and writable; it lives
 # under $HOME because there is no systemd-managed /run/user/<uid> here.
@@ -321,11 +321,10 @@ RUN chmod 644 /etc/agent-entrypoint.d/README
 HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --start-interval=5s --retries=3 \
     CMD ["/usr/local/bin/agent-healthcheck"]
 
-# agent-entrypoint only stashes the container's CMD for the agent service and
-# execs /init: s6 does not forward docker CMD args to services. CMD defaults
-# to empty, so a bare `docker run` starts the agent with no arguments.
-ENTRYPOINT ["/usr/local/bin/agent-entrypoint"]
-CMD []
+# s6's /init is the entrypoint and PID 1. What the agent service runs is fixed
+# by the image (services.d/agent/run); s6 does not read the container CMD, so a
+# runtime command is not forwarded — use `docker exec` for one-off commands.
+ENTRYPOINT ["/init"]
 
 
 # =============================================================================
@@ -348,8 +347,9 @@ ARG AGENT_GID=1000
 
 RUN apt-get update && apt-get install -y --no-install-recommends shellcheck \
     && rm -rf /var/lib/apt/lists/* \
-    && shellcheck /usr/local/bin/agent-entrypoint /usr/local/bin/agent-healthcheck \
-        /usr/local/bin/agent-run \
+    && shellcheck /usr/local/bin/agent-healthcheck \
+        /usr/local/bin/agent-idle /usr/local/bin/agent-run \
+        /usr/local/bin/agent-service-start \
         /usr/local/lib/agent-base/selftest.sh \
     && shellcheck -s bash -e SC1008 -- \
         /etc/cont-init.d/10-prepare \

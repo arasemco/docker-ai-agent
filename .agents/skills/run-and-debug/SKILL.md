@@ -48,11 +48,13 @@ cannot write: a missing directory Docker created root-owned, or a rootless host
 where bind mounts appear root-owned inside. Create the directory owned by uid
 1000 on the host, use a named volume, or run the outer daemon rootful.
 
-**Container exits immediately** — `AGENT_CMD` is `bash` with no TTY. A stack
-that should stay up supplies a long-running command (the `base` profile does).
+**Container exits immediately** — the launch line in `image/services.d/agent/run`
+returned. The base image launches `agent-idle` and stays up; a stack launches
+its CLI, so its exit is the CLI's. A container `CMD` is run by s6 as a one-off
+foreground command after services start, not as the launch line.
 
 **Unhealthy but the CLI answers** — `AGENT_HEALTHCHECK=auto` only warns about a
-dead daemon; a real failure means the CLI process is gone.
+dead daemon; a real failure means the s6 `agent` service is down.
 
 **Exit status confusion** — the container exits with s6's status, not the CLI's.
 The CLI's own status is in `/run/agent/exit-code`.

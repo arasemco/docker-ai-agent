@@ -4,15 +4,15 @@
 #
 # A child image should override this when its CLI exposes a real readiness
 # signal (an HTTP endpoint that requires an authenticated request, a socket,
-# a state file). This default proves the agent process is alive and, when
+# a state file). This default proves the s6 agent service is up and, when
 # configured, that AGENT_HEALTH_URL answers.
 #
 # AGENT_HEALTHCHECK selects the check (default: auto):
-#   auto       AGENT_HEALTH_URL when set, then the AGENT_CMD process is alive;
+#   auto       AGENT_HEALTH_URL when set, then the s6 `agent` service is up;
 #              a rootless dockerd that is not responding is warned about but
 #              does not fail the check
 #   docker     only the daemon check (strict: fails when it is down)
-#   agent      only the AGENT_CMD process check
+#   agent      only the s6 `agent` service check
 #   url:<url>  only an HTTP GET expecting 2xx/3xx
 #   off        always healthy
 #
@@ -41,13 +41,20 @@ check_docker() {
 }
 
 check_agent() {
-    local cmd="${AGENT_CMD:-bash}" name
-    name="$(basename "$cmd")"
-    # The default command is an interactive shell; nothing to watch for.
-    [ "$name" = bash ] && return 0
-    # The agent service runs as AGENT_USER; this healthcheck runs as root (the
-    # container's PID 1 user), so match the account, not the current uid.
-    pgrep -u "${AGENT_UID:-1000}" -x "$name" >/dev/null 2>&1 || fail "'$name' is not running"
+    # The image's own services.d/agent/run is the single source of what runs, so
+    # liveness is the state of that s6 service, not a process name.
+    local status
+    for _ in 1 2 3 4 5; do
+        [ -e /run/service/agent ] && break
+        sleep 1
+    done
+    [ -e /run/service/agent ] || fail "the s6 agent service is not registered"
+    status="$(/command/s6-svstat /run/service/agent 2>&1)" \
+        || fail "cannot read the s6 agent service state: ${status}"
+    case "$status" in
+        up*) return 0 ;;
+        *) fail "the s6 agent service is not up (${status})" ;;
+    esac
 }
 
 check_url() {

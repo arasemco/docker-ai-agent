@@ -10,61 +10,65 @@ metadata:
 
 ## Model
 
-Each file in `compose/` owns exactly one concern and keys the canonical service
-name `agent-base`. A composing file chooses which anchors to merge.
+There is one `docker-compose.yml`. Shared settings are YAML anchors grouped by
+concern; each service merges the mapping anchors and lists the volume anchors it
+needs (YAML merges mappings, not lists).
 
-| Anchor | Owns |
-|---|---|
-| `base.yml` | service skeleton, `AGENT_*` toggles |
-| `daemon.yml` | devices, seccomp exceptions, `agent-docker` volume |
-| `image.yml` | build of `image/` (name, context, args; no command, no mounts) |
-| `harness.yml` | keep-alive command used by tests only |
-| `proxy.yml` | proxy variables with the `PROXY` fallback |
-| `limits.yml` | `AGENT_CPUS` / `AGENT_MEMORY` |
-| `mounts.yml` | host bind for the workspace |
+| Anchor | Owns | Knobs |
+|---|---|---|
+| `x-sandbox` | `init`/tty/restart, seccomp exceptions, devices, resource limits | `AGENT_HOSTNAME`, `AGENT_CPUS`, `AGENT_MEMORY` |
+| `x-agent-env` | `AGENT_*` toggles and proxy resolution (`HTTP_PROXY` → `http_proxy` → `PROXY`) | `AGENT_DOCKERD*`, `AGENT_RESTART_MAX`, `PROXY`, `HTTP_PROXY`/`HTTPS_PROXY`/`ALL_PROXY`/`NO_PROXY` |
+| `x-docker` | the inner daemon's data volume | `AGENT_DOCKER_VOLUME` |
+| `x-skills` | the shared Agent Skills root, read-only | `AGENT_SKILLS_HOST` |
 
-## Adding a anchor
+A service carries build, environment, ports and volumes only. It has no
+`command:` and no launch line: what the CLI runs belongs to the image's s6
+service (`stacks/<name>/image/services.d/agent/run`). A container `CMD` is a
+one-off foreground command run by s6-overlay, not the agent's launch line.
 
-1. Create `compose/<concern>.yml`, keyed `agent-base`, with a header that says
-   what the one concern is and why the settings exist.
-2. Declare any volume the anchor mounts in the same file (`volumes:` at the
-   end). Otherwise including it fails with `refers to undefined volume`.
-3. Register it in `scripts/compose.sh`'s ordered list
-   (`base daemon proxy limits mounts`) so selection is order-independent.
-4. Document it in the anchor table in `README.md` and in
-   `docs/compose.md`; if it reads variables, add them to
-   `docs/configuration.md`.
+## Adding an anchor
+
+1. Define `x-<concern>: &<concern>` at the top level, with a header comment that
+   says what the single concern is and why the settings exist.
+2. If it mounts a volume, declare that volume in the top-level `volumes:` block;
+   otherwise the service fails with `refers to undefined volume`.
+3. Merge it into the services that need it (`<<: *<concern>` for mappings; add
+   the alias to the service's `volumes:` list for volumes).
+4. Document it in the anchor table in `docs/compose.md`, and any variables it
+   reads in `docs/configuration.md`.
 
 ## Combining
 
 ```bash
-docker compose up -d                      # root file: include base + daemon + image
-docker compose --profile opencode up -d
-make up WITH=daemon,limits,mounts
+docker compose --profile opencode up -d     # OpenCode Web UI
+docker compose --profile dsh up -d          # dsh Web UI (host networking)
+docker compose --profile base up -d         # sandbox only, no agent CLI
+make up PROFILE=dsh
 ```
 
-`scripts/compose.sh` also merges a gitignored `compose/local.yml`, and rewrites
-the service key when `--service` names a child stack.
+A gitignored `compose/local.yml` holds per-host additions; pass it explicitly
+with `-f`. `examples/compose/local.yml` is a starting point.
 
 ## Rules that are easy to break
 
-- **One concern per file.** `image.yml` must not set `command` or mounts;
-  `daemon.yml` must not carry proxy variables.
-- **No deployment values in the core.** A anchor may read an environment
+- **One concern per anchor.** Do not fold ports, build args or launch settings
+  into a shared anchor; a stack service adds its own.
+- **No deployment values in the core.** An anchor may read an environment
   variable, but must not default to a host, IP or personal path.
-- **Relative paths.** A anchor's `build.context` is resolved against the
-  anchor's directory for `include:`/`extends`, so the `agent-base` service uses
-  `../image`. Child stacks use `./image` and rely on the assembler anchoring
-  `--project-directory` to their stack file.
-- **`extends` cannot stack anchors.** Compose accepts one `extends` per
-  service; this is why the assembler exists.
+- **Mapping vs list.** `<<:` merges mappings only; volumes must be listed
+  explicitly per service.
+- **Relative paths.** Build contexts are relative to the compose file:
+  `./image` for the base, `./stacks/<name>/image` for a stack.
+- **No commands.** A launch line in compose hides what s6 runs and duplicates
+  the image; keep it in `services.d/agent/run`.
 
 ## Verify
 
 ```bash
 docker compose config >/dev/null
-scripts/compose.sh --with daemon,proxy,limits,mounts --file compose/image.yml -- config >/dev/null
-scripts/compose.sh --service probe --file compose/image.yml -- config | grep 'probe:'
+for p in base opencode dsh; do docker compose --profile "$p" config >/dev/null; done
+make config PROFILE=opencode
+scripts/smoke.sh opencode                   # running stack
 ```
 
 ## References

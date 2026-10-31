@@ -1,0 +1,20 @@
+#!/command/with-contenv bash
+# =============================================================================
+# services.d/agent/run — OpenCode's default launch line.
+#
+# Replaces the base image's run script: the executable, subcommand and flags
+# all live here, in the image that owns the CLI. `make up` carries only the port
+# and credentials, and s6 starts what this script names.
+#
+# OPENCODE_PORT comes from the compose environment (default 4096); the same
+# value is published by the service's ports mapping. --hostname 0.0.0.0 makes
+# the published port reachable inside the container; exposure is controlled by
+# the host binding (`OPENCODE_BIND_IP`).
+#
+# A container CMD is not forwarded to this line: s6-overlay runs it as a
+# separate foreground command after the services start.
+# =============================================================================
+set -euo pipefail
+
+exec /usr/local/bin/agent-service-start \
+    opencode web --port "${OPENCODE_PORT:-4096}" --hostname 0.0.0.0

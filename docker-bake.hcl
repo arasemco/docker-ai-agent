@@ -28,7 +28,7 @@ variable "LICENSES"   { default = "" }
 
 // The base image's own version. Stacks pin this tag, so bump it whenever
 // anything under image/ changes.
-variable "BASE_VERSION" { default = "1.4.1" }
+variable "BASE_VERSION" { default = "1.5.0" }
 
 // Tag applied in addition to the version tag, for every target.
 variable "TAG" { default = "latest" }

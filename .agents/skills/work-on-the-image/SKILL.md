@@ -1,6 +1,6 @@
 ---
 name: work-on-the-image
-description: Change the agent-base image itself — packages, the agent user, s6 services, the entrypoint, environment defaults — and land it with the required version bump and checks. Use when a task touches image/ or changes a runtime default.
+description: Change the agent-base image itself — packages, the agent user, s6 services, the agent launch line, environment defaults — and land it with the required version bump and checks. Use when a task touches image/ or changes a runtime default.
 metadata:
   area: image
   files: image/Dockerfile, image/rootfs/
@@ -27,7 +27,7 @@ metadata:
 | Concern | File |
 |---|---|
 | base digest, package blocks, uv, docker-ce, ENV, WORKDIR | `image/Dockerfile` |
-| entrypoint, CLI runner, healthcheck, selftest | `image/rootfs/usr/local/bin/`, `image/rootfs/usr/local/lib/agent-base/` |
+| service launcher, CLI runner, healthcheck, selftest | `image/rootfs/usr/local/bin/`, `image/rootfs/usr/local/lib/agent-base/` |
 | stage-2 preparation (ownership, directories) | `image/rootfs/etc/cont-init.d/10-prepare` |
 | longruns (`dockerd`, `agent`) | `image/rootfs/etc/services.d/*/{run,finish}` |
 | hooks directory | `image/rootfs/etc/agent-entrypoint.d/` |

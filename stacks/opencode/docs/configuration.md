@@ -9,7 +9,7 @@ Everything is optional; the defaults work with no configuration.
 | `OPENCODE_PORT` | `4096` | port the UI listens on and is published on |
 | `OPENCODE_BIND_IP` | `127.0.0.1` | interface the port is published on |
 | `OPENCODE_SERVER_PASSWORD` | `changeme123` | HTTP basic auth password for the UI |
-| `AGENT_BASE` | `agent-base:1.4.0` | base image the Dockerfile builds from |
+| `AGENT_BASE` | `agent-base:1.5.0` | base image the Dockerfile builds from |
 | `OPENCODE_VERSION` | `1.19.5` | exact `opencode-ai` version from npm |
 | `OPENCODE_IMAGE` | `opencode:local` | tag for the built image |
 | `OPENCODE_CONFIG_HOST` | `opencode-config` | volume or host path for the config dir |

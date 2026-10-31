@@ -12,8 +12,8 @@ agent CLI per stack:
 | [`stacks/opencode`](stacks/opencode/README.md) | the OpenCode CLI and Web UI on a published loopback port |
 | [`stacks/deepseek-harness`](stacks/deepseek-harness/README.md) | the DeepSeek Harness (`dsh`) Web UI, reachable through host networking |
 
-The sandbox itself is the `all` profile: it also selects every stack, because a
-stack service inherits the sandbox's profile through `extends`.
+Each stack runs behind its own compose profile, so `--profile <name> up`
+starts exactly one; the shared sandbox anchors are merged into every stack.
 
 Nothing in the shared parts is host-, person- or project-specific: no registry,
 no proxy, no host paths, no resource limits, no author metadata.
@@ -51,8 +51,8 @@ docs/                  documentation for users
 .agents/               orientation, checks and skills for coding agents
 ```
 
-A stack service carries only its own concerns — build, command, ports,
-credentials, state volumes — because it merges the shared anchors:
+A stack service carries only its own concerns — build, ports, credentials,
+state volumes — because it merges the shared anchors:
 
 ```yaml
 opencode:
@@ -62,7 +62,8 @@ opencode:
     <<: *agent-env
     OPENCODE_SERVER_PASSWORD: "${OPENCODE_SERVER_PASSWORD:-changeme123}"
   build: { context: ./stacks/opencode/image, target: opencode }
-  command: ["web", "--port", "4096", "--hostname", "0.0.0.0"]
+  # No command: the image's s6 agent service defines the launch line
+  # (stacks/opencode/image/services.d/agent/run).
 ```
 
 ## Building
