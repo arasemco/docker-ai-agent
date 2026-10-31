@@ -1,0 +1,89 @@
+name: Build dsh image
+
+on:
+  push:
+    branches: ["main"]
+    tags: ["v*.*.*"]
+  pull_request:
+    branches: ["main"]
+  workflow_dispatch: {}
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      # Derives the registry and source URL from the hosting context (GitHub
+      # Actions or Gitea Actions, which aliases github.*). This workflow is the
+      # only place that assumes an identity; docker-bake.hcl defaults to none.
+      - name: Set variables
+        id: vars
+        run: |
+          set -euo pipefail
+
+          is_github_hosted=false
+          if [ "${GITHUB_SERVER_URL}" = "https://github.com" ]; then is_github_hosted=true; fi
+
+          server_host="${GITHUB_SERVER_URL#http://}"
+          server_host="${server_host#https://}"
+
+          if [ "${is_github_hosted}" = true ]; then registry_host="ghcr.io"; else registry_host="${server_host}"; fi
+
+          registry="${registry_host}/${GITHUB_REPOSITORY_OWNER}"
+          source_url="${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}"
+
+          git_ref="${GITHUB_REF#refs/tags/}"
+          git_ref="${git_ref#refs/heads/}"
+
+          {
+            echo "is_github_hosted=${is_github_hosted}"
+            echo "registry_host=${registry_host}"
+            echo "registry=${registry}"
+            echo "source_url=${source_url}"
+            echo "git_sha=${GITHUB_SHA}"
+            echo "git_ref=${git_ref}"
+          } >> "$GITHUB_OUTPUT"
+
+      # Skipped on pull requests: fork PRs cannot see secrets and unmerged code
+      # should not be published. GHCR needs the built-in GITHUB_TOKEN; a
+      # self-hosted registry has none, so GIT_TOKEN is a PAT/deploy token.
+      - name: Log in to Container Registry
+        if: github.event_name != 'pull_request'
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ steps.vars.outputs.registry_host }}
+          username: ${{ github.actor }}
+          password: ${{ steps.vars.outputs.is_github_hosted == 'true' && secrets.GITHUB_TOKEN || secrets.GIT_TOKEN }}
+
+      # The default group is the runtime image. The "test" target needs the
+      # DeepSeek API key and is never built here.
+      - name: Build and push (docker buildx bake)
+        uses: docker/bake-action@v7
+        with:
+          push: ${{ github.event_name != 'pull_request' }}
+          set: |
+            *.cache-from=type=gha
+            *.cache-to=type=gha,mode=max
+        env:
+          REGISTRY: ${{ steps.vars.outputs.registry }}
+          SOURCE_URL: ${{ steps.vars.outputs.source_url }}
+          GIT_SHA: ${{ steps.vars.outputs.git_sha }}
+          GIT_REF: ${{ steps.vars.outputs.git_ref }}
+          # The base tag has to be reachable from CI; set AGENT_BASE at the
+          # repository or organisation level to the pushed agent-base tag.
+          AGENT_BASE: ${{ vars.AGENT_BASE }}
