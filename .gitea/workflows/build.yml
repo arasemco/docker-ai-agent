@@ -128,5 +128,5 @@ jobs:
       - name: Build and push the stacks
         uses: docker/bake-action@v7
         with:
-          targets: opencode dsh
+          targets: opencode,dsh
           push: ${{ github.event_name != 'pull_request' }}
