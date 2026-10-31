@@ -2,31 +2,35 @@
 // docker-bake.hcl — build definition for the OpenCode image
 // =============================================================================
 //
-// Usage (via scripts/bake.sh, which derives the provenance variables — see its
-// header, or the README's "Publishing"):
+// Usage (through scripts/bake.sh, which fills the provenance variables):
 //   scripts/bake.sh --print
-//   scripts/bake.sh            # build the "default" group
-//   scripts/bake.sh --push     # needs REGISTRY, derived from the git remote
+//   scripts/bake.sh                      # build the "default" group
+//   scripts/bake.sh --push               # needs REGISTRY, derived from the remote
 //   scripts/bake.sh --set OPENCODE_VERSION=1.19.6
 //
-// The image is built FROM agent-base, which this repo does not build. Pin the
-// base tag in AGENT_BASE and bump it deliberately.
+// The image is built FROM agent-base, which this repository does not build. Pin
+// the base tag in AGENT_BASE and bump it deliberately.
+// =============================================================================
 
 // Image repository prefix, without a trailing slash. Empty means plain local
 // tags ("opencode:1.19.5"); scripts/bake.sh derives it from the git remote and
 // an environment variable overrides both.
 variable "REGISTRY" { default = "" }
 
-// Optional provenance metadata; scripts/bake.sh fills it in, and anything that
-// stays unset renders as "unknown" in the OCI labels.
+// Optional provenance metadata, filled in by scripts/bake.sh. Anything left
+// unset renders as "unknown" in the OCI labels.
 variable "SOURCE_URL" { default = "" }
 variable "AUTHOR"     { default = "" }
 variable "VENDOR"     { default = "" }
-variable "LICENSES"   { default = "MIT" }
+variable "LICENSES"   { default = "" }
 
-// The shared base image, by tag (never :latest — a rebuild must be
-// reproducible). Point this at a registry to use a pushed agent-base.
-variable "AGENT_BASE" { default = "agent-base:1.2.0" }
+// Tag applied to the built images. "latest" by default; the version tag also
+// carries OPENCODE_VERSION below.
+variable "TAG" { default = "latest" }
+
+// The shared base image, by tag: never :latest, so a rebuild is reproducible.
+// Point this at a registry to use a pushed agent-base.
+variable "AGENT_BASE" { default = "agent-base:1.4.0" }
 
 // Exact opencode-ai version from npm (`npm view opencode-ai versions`).
 variable "OPENCODE_VERSION" { default = "1.19.5" }
@@ -67,8 +71,8 @@ group "default" {
 }
 
 target "opencode" {
-  // The build context is image/ only (Dockerfile). Compose files, examples and
-  // scripts are host tooling.
+  // The build context is image/ only; compose files, docs and scripts are host
+  // tooling.
   context    = "image"
   dockerfile = "Dockerfile"
 
@@ -78,7 +82,7 @@ target "opencode" {
   }
 
   tags = [
-    image_ref("opencode", "latest"),
+    image_ref("opencode", TAG),
     image_ref("opencode", OPENCODE_VERSION),
   ]
 

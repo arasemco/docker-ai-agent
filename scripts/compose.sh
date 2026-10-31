@@ -1,10 +1,11 @@
 #!/usr/bin/env bash
 # =============================================================================
-# compose.sh — this stack, assembled with agent-base's compose fragments
+# compose.sh — this stack, assembled from agent-base's compose fragments
 # =============================================================================
-# Thin wrapper: agent-base/scripts/compose.sh does the work (fragment order,
-# service renaming, compose/local.yml merge). The only thing fixed here is the
-# service name and where the fragments and this stack's file live.
+# A thin wrapper around agent-base/scripts/compose.sh, which does the work:
+# fragment order, service renaming (the fragments are keyed "agent-base"), and
+# merging a gitignored compose/local.yml. Only the paths and the service name
+# are fixed here.
 #
 #   ./scripts/compose.sh -- up -d --build
 #   ./scripts/compose.sh --with daemon,proxy,limits -- up -d
@@ -14,7 +15,7 @@ set -euo pipefail
 
 cd "$(dirname "$0")/.."
 
-# `make` passes WITH, the fragments' own convention is COMPOSE_WITH.
+# `make` passes WITH; the fragments' own convention is COMPOSE_WITH.
 export COMPOSE_WITH="${COMPOSE_WITH:-${WITH:-daemon}}"
 
 exec ../agent-base/scripts/compose.sh \

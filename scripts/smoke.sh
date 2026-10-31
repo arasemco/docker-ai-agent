@@ -1,17 +1,16 @@
 #!/usr/bin/env bash
-# smoke.sh — checks the running opencode stack (build it first: `make up`).
+# smoke.sh — checks the running stack.
 #
 #   ./scripts/smoke.sh
+#   SMOKE_REQUIRE_DOCKER=1 ./scripts/smoke.sh   # fail when the inner daemon is down
 #
-# Probes the Web UI and the container healthcheck. A password-protected UI
-# answers 401 to a bare request, so any HTTP status proves the server listens;
-# 000/empty means nothing is there.
+# Probes the Web UI, the container healthcheck and both s6 services. A
+# password-protected UI answers 401 to a bare request, so any HTTP status proves
+# the server listens; 000/empty means nothing is there.
 set -euo pipefail
 
 cd "$(dirname "$0")/.."
 
-# Same assembly as the makefile: agent-base fragments (WITH, default daemon)
-# plus this stack, with compose/local.yml merged by the wrapper when present.
 compose() {
     scripts/compose.sh --with "${WITH:-daemon}" -- "$@"
 }
@@ -21,7 +20,7 @@ compose config >/dev/null
 
 echo "Checking container status..."
 if ! compose ps --status running --services | grep -q '^opencode$'; then
-    echo "opencode is not running; start with: docker compose up -d --build"
+    echo "opencode is not running; start with: make up"
     exit 1
 fi
 
@@ -37,22 +36,40 @@ echo "Probing ${url} ..."
 code="$(curl -sS -o /dev/null -w '%{http_code}' --max-time 5 "$url" || true)"
 if [ -z "$code" ] || [ "$code" = "000" ]; then
     echo "no response from ${url}"
+    compose logs --tail 20 opencode || true
     exit 1
 fi
-
-id="$(compose ps --quiet opencode)"
-status="$(docker inspect --format '{{if .State.Health}}{{.State.Health.Status}}{{else}}none{{end}}' "$id")"
-echo "Healthcheck: ${status}"
 
 echo "s6 services:"
 compose exec --no-TTY opencode sh -c \
     '/command/s6-svstat /run/service/dockerd; /command/s6-svstat /run/service/agent'
 
+echo "inner daemon:"
+daemon_up=0
+for _ in $(seq 1 15); do
+    if compose exec --no-TTY opencode timeout 10 docker info >/dev/null 2>&1; then
+        daemon_up=1
+        break
+    fi
+    sleep 2
+done
+if [ "${daemon_up}" -eq 1 ]; then
+    compose exec --no-TTY opencode docker info --format '   Docker {{.ServerVersion}} / {{.Driver}}'
+else
+    if [ "${SMOKE_REQUIRE_DOCKER:-0}" = 1 ]; then
+        echo "   FAIL: the inner daemon is not responding"
+        exit 1
+    fi
+    echo "   SKIP: the inner daemon is not responding (see the container log)"
+fi
+
 echo -n "opencode version: "
 compose exec --no-TTY opencode opencode --version
 
+id="$(compose ps --quiet opencode)"
+status="$(docker inspect --format '{{if .State.Health}}{{.State.Health.Status}}{{else}}none{{end}}' "$id")"
+echo "Healthcheck: ${status}"
 if [ "$status" != healthy ]; then
-    echo "container is not healthy; last log lines:"
     compose logs --tail 20 opencode || true
     exit 1
 fi
