@@ -18,7 +18,7 @@
 # The shared base, pinned to a tag rather than :latest so a rebuild is
 # reproducible. With no registry prefix this resolves to a locally built
 # image; override AGENT_BASE to use a pushed one.
-ARG AGENT_BASE=agent-base:1.1.0
+ARG AGENT_BASE=agent-base:1.2.0
 FROM ${AGENT_BASE}
 
 # Exact opencode-ai version (`npm view opencode-ai versions`); a dist-tag

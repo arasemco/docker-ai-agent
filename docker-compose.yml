@@ -25,7 +25,7 @@ services:
       args:
         # Pin the shared base by tag (never :latest) so a rebuild is
         # reproducible; override AGENT_BASE to use a pushed agent-base.
-        AGENT_BASE: ${AGENT_BASE:-agent-base:1.1.0}
+        AGENT_BASE: ${AGENT_BASE:-agent-base:1.2.0}
         OPENCODE_VERSION: ${OPENCODE_VERSION:-1.19.5}
     hostname: opencode
     command: ["web", "--port", "${OPENCODE_PORT:-4096}", "--hostname", "0.0.0.0"]

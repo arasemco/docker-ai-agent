@@ -38,7 +38,7 @@ make debug      # shell as root
 
 | Piece | Comes from |
 |---|---|
-| base image (Debian, agent user, s6 services, dockerd, toolchain) | `AGENT_BASE` build arg, default `agent-base:1.1.0` |
+| base image (Debian, agent user, s6 services, dockerd, toolchain) | `AGENT_BASE` build arg, default `agent-base:1.2.0` |
 | OpenCode itself | `npm install -g opencode-ai@${OPENCODE_VERSION}` in `image/Dockerfile` |
 | sandbox (service skeleton, devices/seccomp, proxy, limits, mounts) | agent-base compose fragments, assembled by `scripts/compose.sh` |
 | entrypoint, hooks, healthcheck, restart policy | `agent-base` |
@@ -51,7 +51,7 @@ State lives under `/home/agent`:
 | `/home/agent/.config/opencode` | `opencode-config` | providers/models |
 | `/home/agent/.local/share/opencode` | `opencode-data` | `auth.json`, session DB, snapshots |
 | `/home/agent/.local/state/opencode` | `opencode-state` | XDG state |
-| `/home/agent/Projects` | – | working directory (mount something here) |
+| `/home/agent/workspace` | – | working directory (mount something here) |
 
 No config is baked into the image: which providers you have and where they run
 is deployment-specific. Either configure providers in the UI (it writes
@@ -73,7 +73,7 @@ you need with `WITH` (or `--with`):
 | `daemon` | default | `/dev/fuse`, `/dev/net/tun`, `seccomp:unconfined`, `systempaths: unconfined` |
 | `proxy` | `proxy` | outbound proxy pass-through (values from `.env`) |
 | `limits` | `limits` | CPU/memory limits from `AGENT_CPUS` / `AGENT_MEMORY` |
-| `mounts` | `mounts` | bind the workspace to `AGENT_PROJECTS_HOST` (default `~/Projects`) |
+| `mounts` | `mounts` | bind the workspace to `AGENT_WORKSPACE_HOST` (default `./workspace`) |
 
 ```bash
 make up                                   # base + daemon

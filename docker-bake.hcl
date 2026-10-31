@@ -26,7 +26,7 @@ variable "LICENSES"   { default = "MIT" }
 
 // The shared base image, by tag (never :latest — a rebuild must be
 // reproducible). Point this at a registry to use a pushed agent-base.
-variable "AGENT_BASE" { default = "agent-base:1.1.0" }
+variable "AGENT_BASE" { default = "agent-base:1.2.0" }
 
 // Exact opencode-ai version from npm (`npm view opencode-ai versions`).
 variable "OPENCODE_VERSION" { default = "1.19.5" }
