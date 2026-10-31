@@ -1,9 +1,9 @@
 # =============================================================================
 # Example: a machine-specific compose/local.yml
 # =============================================================================
-# Copy to compose/local.yml (gitignored). scripts/compose.sh appends it to every
-# invocation, so it needs no flag. It is the place for what is true only on one
-# machine: extra source trees, a read-only share, a bind that replaces a
+# Copy to compose/local.yml (gitignored) and pass it with -f next to
+# docker-compose.yml. It is the place for what is true only on one
+# machine: extra source trees, a read-only share, a bind that replaces an
 # anchor's volume, a provider endpoint.
 #
 # The service key must match this stack's service ("opencode").

@@ -17,11 +17,10 @@ All variables are optional; every default works with no configuration.
 | `AGENT_UID` / `AGENT_GID` | `1000` | build | uid/gid of that account |
 | `XDG_RUNTIME_DIR` | `$HOME/.docker/run` | daemon | daemon socket directory |
 | `DOCKER_HOST` | `unix://$XDG_RUNTIME_DIR/docker.sock` | docker clients | daemon socket |
-| `AGENT_DOCKER_VOLUME` | `agent-docker` | `daemon.yml` | volume (or host path) for daemon data |
-| `AGENT_WORKSPACE_HOST` | `${PWD}/workspace` | `mounts.yml` | host directory bound as the workspace |
-| `AGENT_CPUS` / `AGENT_MEMORY` | `2` / `4G` | `limits.yml` | container limits |
-| `AGENT_SKILLS_HOST` | `${PWD}/skills` | `skills.yml` | host directory mounted as the shared skills root |
-| `AGENT_HOSTNAME` | `agent` | `base.yml` | container hostname |
+| `AGENT_DOCKER_VOLUME` | `agent-docker` | `x-docker` | volume (or host path) for daemon data |
+| `AGENT_CPUS` / `AGENT_MEMORY` | `2` / `4G` | `x-sandbox` | container limits |
+| `AGENT_SKILLS_HOST` | `${PWD}/skills` | `x-skills` | host directory mounted as the shared skills root |
+| `AGENT_HOSTNAME` | `agent` | `x-sandbox` | container hostname |
 | `AGENT_SUBID_REMAP` | `1` | `cont-init.d/10-prepare` | rewrite `/etc/subuid`/`subgid` into the ids this container can reach |
 | `PROXY`, `HTTP_PROXY`, `HTTPS_PROXY`, `ALL_PROXY`, `NO_PROXY`, `http_proxy`, `https_proxy`, `all_proxy`, `no_proxy` | – | `x-agent-env` | see [Proxy](#proxy) |
 
@@ -66,11 +65,11 @@ scheme-specific variables empty.
 
 | Anchor | Volume | Target |
 |---|---|---|
-| `daemon.yml` | `agent-docker` | `/home/agent/.local/share/docker` |
-| `image.yml` | – | (no mount: the workspace stays inside the container) |
-| `mounts.yml` | host path | `/home/agent/workspace` |
+| `x-docker` | `agent-docker` | `/home/agent/.local/share/docker` |
+| `x-skills` | `AGENT_SKILLS_HOST` (default `./skills`) | `/home/agent/.agents/skills`, read-only |
 
-A child stack adds its own volumes (config/state) in its compose file.
+The workspace stays inside the container: no anchor binds a host directory
+onto it. A child stack adds its own config/state volumes in its compose file.
 
 ## Skills
 
@@ -80,7 +79,7 @@ CLIs discover them under `~/.agents/skills` and their tool-specific paths, and
 load the body on demand through their `skill` tool.
 
 The image creates `/home/agent/.agents/skills` owned by the agent user. The
-`skills` anchor mounts a host directory there read-only, so one library serves
+`x-skills` anchor mounts a host directory there read-only, so one library serves
 every agent container:
 
 ```bash

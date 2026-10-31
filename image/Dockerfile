@@ -96,7 +96,7 @@ FROM ${DEBIAN_REF} AS agent-base
 # AGENT_USER names the unprivileged account that runs the agent. Bare Debian
 # has nothing at uid/gid 1000, so the account is created fresh here; the
 # relabel branch exists for bases that already ship one (the node image used
-# to, as "node"). Every path in compose.base.yml follows ${AGENT_USER}.
+# to, as "node"). Every path in docker-compose.yml assumes this account.
 ARG AGENT_USER=agent
 ARG AGENT_UID=1000
 ARG AGENT_GID=1000

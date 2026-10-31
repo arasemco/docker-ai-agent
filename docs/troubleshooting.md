@@ -7,7 +7,7 @@ The daemon service logs why; read `/home/agent/.docker/dockerd.log`.
 | Symptom in the log | Cause | Fix |
 |---|---|---|
 | `newuidmap: write to uid_map failed: Operation not permitted` | `/etc/subuid` names ids the parent namespace cannot reach — typical when the container itself runs under a rootless daemon | automatic: `cont-init.d/10-prepare` rewrites the ranges; `AGENT_SUBID_REMAP=0` disables that |
-| `failed to setup UID/GID map` / rootlesskit errors | the container lacks `seccomp:unconfined`, `systempaths=unconfined` or the devices | select the `daemon` anchor or add those settings |
+| `failed to setup UID/GID map` / rootlesskit errors | the container lacks `seccomp:unconfined`, `systempaths=unconfined` or the devices | use `make up` (every service merges `x-sandbox`), or add those settings |
 | `permission denied` on `/dev/fuse` | `/dev/fuse` not passed through | add the device |
 
 **Why the id ranges matter.** `newuidmap` resolves a user's subordinate ids by
@@ -60,13 +60,12 @@ the published port in `.env` (`OPENCODE_PORT`-style variables in child stacks).
 
 ## `refers to undefined volume`
 
-A anchor mounts a volume the composing project did not declare. Fragments
-declare their own; a child stack must declare the volumes its own compose file
-uses.
+An anchor mounts a volume that the project's top-level `volumes:` block does not
+declare. A child stack must declare the volumes its own compose file uses.
 
 ## Compose project name surprises
 
 The project name defaults to the directory of the first compose file. The root
-`docker-compose.yml` pins `name:`, and the `agent-base` service pins it for script
-mode, so both paths create `agent-base-<service>-1`. Override with
+`docker-compose.yml` pins `name: agent`, so containers are named
+`agent-<service>-1` regardless of how compose is invoked. Override with
 `COMPOSE_PROJECT_NAME` when running several stacks from one directory.

@@ -59,7 +59,7 @@ whether the file path works.
 | Path | Volume | Holds |
 |---|---|---|
 | `/home/agent/.dsh` | `dsh-home` | profiles, credentials, sessions |
-| `/home/agent/workspace` | – | working directory (`mounts` anchor binds a host tree) |
+| `/home/agent/workspace` | – | working directory (`DSH_WORKSPACE`); not persisted unless a local override binds it |
 | `/home/agent/.local/share/docker` | `agent-docker` | inner daemon data |
 
 ## Healthcheck

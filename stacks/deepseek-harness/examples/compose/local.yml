@@ -1,8 +1,8 @@
 # =============================================================================
 # Example: a machine-specific compose/local.yml
 # =============================================================================
-# Copy to compose/local.yml (gitignored). scripts/compose.sh appends it to every
-# invocation, so it needs no flag. Use it for what is true only on one machine:
+# Copy to compose/local.yml (gitignored) and pass it with -f next to
+# docker-compose.yml. Use it for what is true only on one machine:
 # extra source trees, a read-only share, a bind that replaces the home volume.
 #
 # The service key must match this stack's service ("dsh").

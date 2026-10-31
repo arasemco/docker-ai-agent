@@ -41,7 +41,8 @@ the right form per launcher.
 
 **`dockerd exited during startup` with mount errors** — the container lacks
 `seccomp:unconfined`, `systempaths=unconfined`, `/dev/fuse` or `/dev/net/tun`.
-Include the `daemon` anchor.
+Every compose service merges the `x-sandbox` anchor; a bare `docker run` must
+pass these settings itself.
 
 **`ERROR: /home/agent/workspace is not writable`** — a bind source that uid 1000
 cannot write: a missing directory Docker created root-owned, or a rootless host

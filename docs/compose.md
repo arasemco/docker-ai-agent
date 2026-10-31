@@ -12,10 +12,10 @@ YAML anchors, grouped by concern, and each service merges the ones it needs:
 | `x-docker` | the inner daemon's data volume | `AGENT_DOCKER_VOLUME` |
 | `x-skills` | the shared Agent Skills root, read-only | `AGENT_SKILLS_HOST` |
 
-Anchors replaced an earlier per-file fragment layout: fragments needed `include:`
-plus `extends:` to reach a differently named service, and `extends` also leaks
-the parent's profile and build target, which made `--profile base` start every
-stack and failed stack builds with `target stage "agent-base" could not be found`.
+One file avoids `extends:`: reaching a differently named service with `extends`
+also inherits the parent's profile and build target, which makes `--profile base`
+start every stack and breaks stack builds with
+`target stage "agent-base" could not be found`.
 
 YAML merges mappings, not lists, so a service merges the mapping anchor and
 lists the volume anchors it needs:

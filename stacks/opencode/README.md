@@ -12,7 +12,7 @@ comes from agent-base, pinned by tag in `AGENT_BASE`.
 
 ```bash
 cp .env.example .env          # port, image tag, password
-make up                       # build and start (base + daemon anchors)
+make up                       # build and start the stack
 ```
 
 Open <http://127.0.0.1:4096>. The UI is published on loopback by default because

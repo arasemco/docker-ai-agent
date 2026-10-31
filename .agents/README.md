@@ -40,13 +40,14 @@ agent CLI in this repository, and there should never be one.
 
 1. **Generic core.** No host names, IPs, registry paths, personal paths or
    project names outside `examples/`. Verify:
-   `grep -rniE "asemo|omesa|[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+|/home/[a-z]+/" image compose docker-compose.yml scripts docker-bake.hcl makefile README.md`
+   `grep -rniE "asemo|omesa|[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+|/home/[a-z]+/" image docker-compose.yml scripts docker-bake.hcl makefile README.md`
 2. **No `USER` in child images.** `/init` must stay PID 1 as root; services drop
    to the agent user with `/command/s6-setuidgid`. Ending the image with
    `USER 1000:1000` breaks the s6 supervision tree.
-3. **Fragments stay single-purpose.** A anchor may only own the keys its
-   concern needs. `image.yml` builds; it does not set `command` or mounts.
-   `daemon.yml` owns the daemon's devices and volume; nothing else.
+3. **Anchors stay single-purpose.** An anchor may only own the keys its
+   concern needs: `x-sandbox` holds devices, seccomp and limits;
+   `x-agent-env` holds the environment; `x-docker` and `x-skills` hold their
+   own volumes. A service adds its own build, ports and credentials.
 4. **Every anchor declares the volume it mounts.** Otherwise including it
    fails with `refers to undefined volume`.
 5. **Comments describe behaviour, not history.** No "used to", "we decided",

@@ -59,14 +59,14 @@ request, which is what `scripts/smoke.sh` expects.
 
 ## Compose anchors
 
-The stack is assembled from agent-base's anchors; select extra ones with
-`WITH`:
+Every service merges the shared anchors (`x-sandbox`, `x-agent-env`, `x-docker`,
+`x-skills`); this stack's service adds only its build, port, credentials and
+state volumes. Proxy values come from `.env` or the environment:
 
 ```bash
-make up                       # base + daemon
-make up WITH=daemon,proxy     # + outbound proxy (values from .env)
-make up WITH=daemon,limits,mounts,skills
+make up                          # build and start the stack
+PROXY=http://proxy:3128 make up  # route the agent's outbound calls through it
 ```
 
-A gitignored `compose/local.yml` is merged automatically; start from
+A gitignored `compose/local.yml` can be added with `-f`; start from
 [examples/compose/local.yml](../examples/compose/local.yml).

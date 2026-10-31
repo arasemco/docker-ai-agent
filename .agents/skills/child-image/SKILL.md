@@ -81,7 +81,7 @@ services:
     volumes:
       - ${MY_CLI_HOME_HOST:-my-cli-home}:/home/agent/.config/my-cli
 volumes:
-  agent-docker:                          # the daemon anchor mounts it
+  agent-docker:                          # mounted by the x-docker anchor
   my-cli-home:
 ```
 

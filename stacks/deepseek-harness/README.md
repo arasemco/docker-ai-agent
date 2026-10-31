@@ -15,7 +15,7 @@ request succeeds.
 
 ```bash
 cp .env.example .env          # base tag, dsh version, port
-make up                       # build and start (base + daemon anchors)
+make up                       # build and start the stack
 ```
 
 `make logs` prints the launch URL. Open it, sign in, and add the DeepSeek API key
