@@ -58,6 +58,18 @@ pull request, then builds and pushes on pushes and tags. Registry and source URL
 are derived from the workflow context (GitHub or Gitea Actions); the bake file
 itself carries no identity.
 
+### Registry credentials
+
+On GitHub Actions the built-in `GITHUB_TOKEN` logs in to GHCR. A self-hosted
+Gitea registry does not accept the auto-injected actions token — it carries no
+package scope — so the workflow expects a repository secret named **`GIT_TOKEN`**:
+a Gitea access token created by the account that owns the registry namespace,
+with the `write:package` scope. The workflow checks for it before logging in and
+fails with that instruction rather than docker's generic denial.
+
+The login username is the repository owner (the token's owner), not the actor
+that triggered the run.
+
 ### Cache
 
 Build layers are cached in the container registry, at
