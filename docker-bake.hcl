@@ -18,7 +18,7 @@
 
 // Image repository prefix, without a trailing slash, e.g.
 // "ghcr.io/youruser" or "registry.example:5000/team". Empty means plain local
-// tags ("agent-base:1.2.0"), which is what an unconfigured clone gets.
+// tags ("agent-base:1.4.0"), which is what an unconfigured clone gets.
 variable "REGISTRY" { default = "" }
 
 // Where this packaging lives and who publishes it. All optional: the OCI

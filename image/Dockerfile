@@ -29,7 +29,7 @@
 # Agent-specific parts do not belong here. A child image adds its CLI, its
 # config and its default command (see ../examples/child-image/):
 #
-#     FROM agent-base:1.2.0
+#     FROM agent-base:1.4.0
 #     ARG CLI_VERSION=1.0.0
 #     RUN npm install --global "some-agent-cli@${CLI_VERSION}"
 #     ENV AGENT_CMD=some-agent-cli

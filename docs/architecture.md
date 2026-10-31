@@ -29,7 +29,10 @@ modules and static binaries that do not load on musl. Node comes from Debian
    so services can see it through `#!/command/with-contenv`.
 3. **s6 stage 2 — cont-init**: `10-prepare` runs as root, creates state
    directories, takes ownership of a root-owned mount point if needed, and
-   aborts with a clear message if the workspace is still unwritable.
+   aborts with a clear message if the workspace is still unwritable. It also
+   rewrites `/etc/subuid` and `/etc/subgid` when the container cannot reach the
+   configured subordinate ids — the case when it runs under another rootless
+   daemon — so the inner `dockerd` can build its namespace.
 4. **s6 stage 2 — services**: `dockerd` and `agent` start. `agent` waits up to
    `AGENT_DOCKERD_TIMEOUT` for `dockerd`'s readiness notification.
 5. On container stop, s6 terminates both services and runs their `finish`
@@ -39,7 +42,7 @@ modules and static binaries that do not load on musl. Node comes from Debian
 
 | Service | User | Supervision |
 |---|---|---|
-| `dockerd` | `agent` | restarts on exit; after `AGENT_DOCKERD_MAX_RESTARTS` failed starts it idles instead of looping; readiness is announced on s6's notification fd once `docker info` answers |
+| `dockerd` | `agent` | restarts on exit; after `AGENT_DOCKERD_MAX_RESTARTS` failed starts it idles instead of looping; readiness is announced on s6's notification fd once `docker info` answers. Runs `dockerd-rootless.sh` (Debian) with the daemon's own flags, or `dockerd-entrypoint.sh` (Alpine) with a leading command word, whichever exists |
 | `agent` | `agent` | waits (bounded) for `dockerd` readiness, then execs `$AGENT_CMD`; exit 0 stops the container, a crash after 60 s is restarted, `AGENT_RESTART_MAX` failed starts in a row stop the container, a signal never restarts |
 
 Both services run through `/command/s6-setuidgid agent`, so neither the CLI nor

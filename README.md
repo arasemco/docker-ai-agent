@@ -35,7 +35,7 @@ scripts/bake.sh                  # build the image via bake
 
 ```dockerfile
 # my-agent/Dockerfile
-FROM agent-base:1.2.0
+FROM agent-base:1.4.0
 
 RUN npm install --global "my-agent-cli@1.2.3"
 RUN install -d -o 1000 -g 1000 /home/agent/.config/my-agent-cli
@@ -51,7 +51,7 @@ services:
     build:
       context: ./image
       args:
-        AGENT_BASE: agent-base:1.2.0
+        AGENT_BASE: agent-base:1.4.0
     command: ["--help"]                  # args for AGENT_CMD
     volumes:
       - my-agent-home:/home/agent/.config/my-agent-cli

@@ -14,7 +14,7 @@ metadata around it.
 ## Dockerfile
 
 ```dockerfile
-ARG AGENT_BASE=agent-base:1.2.0
+ARG AGENT_BASE=agent-base:1.4.0
 FROM ${AGENT_BASE}
 
 ARG CLI_VERSION=1.0.0
@@ -52,7 +52,7 @@ services:
     build:
       context: ./image
       args:
-        AGENT_BASE: agent-base:1.2.0
+        AGENT_BASE: agent-base:1.4.0
         CLI_VERSION: 1.0.0
     hostname: my-cli
     command: ["--help"]                  # arguments for AGENT_CMD

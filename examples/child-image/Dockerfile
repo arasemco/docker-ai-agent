@@ -10,7 +10,7 @@
 #   docker compose build && docker compose up -d
 # =============================================================================
 
-ARG AGENT_BASE=agent-base:1.2.0
+ARG AGENT_BASE=agent-base:1.4.0
 FROM ${AGENT_BASE}
 
 # Pin the CLI exactly; a dist-tag would float. Replace this with the package
