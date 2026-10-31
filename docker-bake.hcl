@@ -28,7 +28,9 @@ variable "REGISTRY" { default = "" }
 variable "SOURCE_URL" { default = "" }
 variable "AUTHOR"     { default = "" }
 variable "VENDOR"     { default = "" }
-variable "LICENSES"   { default = "MIT" }
+// Empty by default: the licence belongs to whoever owns the repository.
+// scripts/bake.sh fills it from the LICENSE file when one exists.
+variable "LICENSES" { default = "" }
 
 // agent-base's own version, independent of any CLI installed on top of it.
 // Child images pin the base by this tag (or by digest, which is stronger).

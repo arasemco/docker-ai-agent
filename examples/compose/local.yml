@@ -1,0 +1,22 @@
+# =============================================================================
+# Example: a machine-specific compose/local.yml
+# =============================================================================
+# Copy to compose/local.yml (gitignored). scripts/compose.sh appends it to every
+# invocation, so nothing here needs a flag — it is the place for what is true
+# only on your machine: extra source trees, a second read-only cache, a bind
+# that replaces a fragment's volume.
+#
+# The service key must be the one you are extending:
+#   agent-base           this repo's own stack
+#   <your service>       a child stack (see its docker-compose.yml)
+#
+#   cp examples/compose/local.yml compose/local.yml
+# =============================================================================
+
+services:
+  agent-base:
+    volumes:
+      # Extra host trees, read-only. Adjust or delete: this is an example, and a
+      # path that does not exist is auto-created root-owned by Docker, which the
+      # image's cont-init then refuses to start with.
+      - ${HOME}/src:/home/agent/src:ro

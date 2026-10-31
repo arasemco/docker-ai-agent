@@ -23,7 +23,7 @@
 #   BAKE_REMOTE=<name>, then origin, then the first configured remote. A repo
 #   whose only remote is called "gitea" or "upstream" therefore still derives
 #   correctly; BAKE_REMOTE pins a specific one when there are several.
-#   VENDOR         domain of the author's email (aram@asemo.pro -> asemo.pro)
+#   VENDOR         domain of the author's email (you@example.com -> example.com)
 #   LICENSES       SPDX id detected from LICENSE / LICENCE / COPYING
 #   BASE_VERSION   the exact git tag at HEAD, when it looks like vX.Y.Z
 #

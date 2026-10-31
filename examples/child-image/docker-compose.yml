@@ -12,8 +12,8 @@
 #       --fragments /path/to/agent-base/compose \
 #       --file docker-compose.yml -- up -d --build
 #
-# A real child repo wraps that command in its own scripts/compose.sh (see the
-# sibling opencode repo) so callers just run `make up`.
+# A real child repo wraps that command in its own scripts/compose.sh so
+# callers just run `make up`.
 # =============================================================================
 
 services:

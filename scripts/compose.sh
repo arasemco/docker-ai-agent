@@ -29,7 +29,7 @@
 #
 # Why a script: `-f` merging only lines up services that share a NAME, and the
 # fragments are written for the canonical service `agent-base`. When a child
-# stack asks for another name (opencode, claude, …) this renames the fragment's
+# stack asks for another name (myagent, …) this renames the fragment's
 # service key in a throwaway copy, so the child keeps its own service name and
 # still gets the shared sandbox. `extends` cannot do that: compose accepts only
 # a single extends per service, so it cannot stack fragments.

@@ -110,7 +110,8 @@ the `--file` stack, so `context: ./image` means "this repo's image/" for a child
 and `context: ../image` means the same for agent-base's own `compose/image.yml`.
 
 Anything beyond the fragments (extra binds, per-host tweaks) goes in a
-gitignored `compose/local.yml`, which `compose.sh` appends automatically.
+gitignored `compose/local.yml`, which `compose.sh` appends automatically;
+[examples/compose/local.yml](examples/compose/local.yml) is a starting point.
 
 ## What is inside
 
@@ -213,15 +214,15 @@ start from the examples:
 
 | File (gitignored) | Start from | Holds |
 |---|---|---|
-| `compose/local.yml` | the fragments, plus your own binds | per-host tweaks beyond the fragments |
-| `.env` | `.env.example`, `examples/env/proxy-squid.env` | proxy URLs, limits, volume names, ports |
+| `compose/local.yml` | `examples/compose/local.yml` | per-host tweaks beyond the fragments |
+| `.env` | `.env.example`, `examples/env/proxy.env` | proxy URLs, limits, volume names, ports |
 
 `compose.sh` merges `compose/local.yml` automatically when it exists, so a
 typical setup needs no flags at all:
 
 ```bash
 cp .env.example .env
-cat examples/env/proxy-squid.env >> .env     # only if you need a proxy
+cat examples/env/proxy.env >> .env           # only if you need a proxy
 echo 'AGENT_CPUS=8' >> .env                  # only if you want limits
 echo 'AGENT_MEMORY=32G' >> .env
 make up WITH=daemon,proxy,limits
@@ -242,7 +243,7 @@ the container, so uid 1000 cannot write them.
 | `compose/{base,daemon,image,proxy,limits,mounts}.yml` | one fragment per concern (see "Compose fragments") |
 | `compose/harness.yml` | test-only overlay: sleep-forever command instead of a shell |
 | `scripts/compose.sh` | assembles the fragments, renames the service for a child, merges `compose/local.yml` |
-| `examples/` | env examples and a child-image example; not used by the build |
+| `examples/` | copy-paste material: proxy env, a local.yml overlay, a child image (see [examples/README.md](examples/README.md)) |
 | `docker-bake.hcl` | bake targets, pinned versions, neutral defaults |
 | `scripts/bake.sh` | fills the provenance variables from git (see "Publishing") and runs bake from the repo root |
 | `scripts/smoke.sh` | runtime validation in a real container |

@@ -25,7 +25,7 @@
 #
 #   cp .env.example .env
 #   echo 'PROXY=http://proxy.example:3128' >> .env      # simplest form
-#   cat examples/env/proxy-squid.env >> .env            # per-variable form
+#   cat examples/env/proxy.env >> .env                 # per-variable form
 # =============================================================================
 
 services:
