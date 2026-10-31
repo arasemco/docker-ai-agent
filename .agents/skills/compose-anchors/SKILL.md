@@ -1,9 +1,9 @@
 ---
 name: compose-anchors
-description: Add, change or combine the compose anchors in compose/ — one file per concern, assembled by scripts/compose.sh or included by the root docker-compose.yml. Use when a task changes how a stack is put together, adds a new opt-in concern, or wires a child stack.
+description: Add or change the shared compose anchors in docker-compose.yml (sandbox, environment, volumes) and the per-stack services that merge them. Use when a task changes how a stack is put together, adds a shared concern, or adds a new stack.
 metadata:
   area: compose
-  files: compose/, docker-compose.yml, scripts/compose.sh
+  files: docker-compose.yml, makefile, scripts/smoke.sh
 ---
 
 # Compose anchors

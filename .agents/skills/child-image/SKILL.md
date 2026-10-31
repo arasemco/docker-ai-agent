@@ -80,8 +80,7 @@ stack here under `stacks/<name>/` with a service that merges them and its own
 ## Verify
 
 ```bash
-docker compose build            # or scripts/compose.sh -- build
-scripts/compose.sh -- up -d     # then probe the CLI/UI
+docker compose up -d --build    # then probe the CLI/UI
 docker compose exec --user 1000 my-cli my-cli --version
 ```
 
