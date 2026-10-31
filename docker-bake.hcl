@@ -83,6 +83,15 @@ variable "GIT_REF" { default = "unknown" }
 // Comma-separated so PLATFORMS=linux/amd64,linux/arm64 can override it.
 variable "PLATFORMS" { default = "linux/amd64" }
 
+// Build layers are cached in the registry as <REGISTRY>/agent-base:buildcache
+// and always read from it (a failed read is a cache miss, not an error).
+// Writing needs push rights, so it is off unless CACHE_WRITE=true — CI sets it
+// on push and tag runs, and leaves pull requests read-only.
+variable "CACHE_WRITE" {
+  type    = bool
+  default = false
+}
+
 // Pure OCI-standard labels. Optional metadata renders as "unknown" instead of
 // assuming an owner for the image.
 function "oci_labels" {
@@ -127,6 +136,11 @@ target "agent-base" {
     UV_VERSION         = UV_VERSION
     S6_OVERLAY_VERSION = S6_OVERLAY_VERSION
   }
+
+  // Registry cache: no dependency on a CI-specific cache service, so the same
+  // build definition works on GitHub Actions, Gitea Actions and a laptop.
+  cache-from = REGISTRY == "" ? [] : ["type=registry,ref=${REGISTRY}/agent-base:buildcache"]
+  cache-to   = CACHE_WRITE && REGISTRY != "" ? ["type=registry,ref=${REGISTRY}/agent-base:buildcache,mode=max"] : []
 
   tags = [
     image_ref("agent-base", "latest"),

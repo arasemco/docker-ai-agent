@@ -8,6 +8,12 @@ on:
     branches: ["main"]
   workflow_dispatch: {}
 
+# Cache: build layers live in the container registry
+# (<REGISTRY>/agent-base:buildcache), not in a CI-specific cache service, so the
+# same build definition and the same cache work on GitHub Actions, Gitea Actions
+# and a developer machine. See CACHE_WRITE in docker-bake.hcl. GHA-style
+# `type=gha` caching is deliberately not used: it needs the GitHub Actions cache
+# service, which self-hosted forges do not provide.
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
@@ -62,15 +68,15 @@ jobs:
           } >> "$GITHUB_OUTPUT"
 
       # The test target builds the image and its test stage (shellcheck plus
-      # the tool-matrix selftest) and exports nothing.
+      # the tool-matrix selftest) and exports nothing. It only reads the registry
+      # cache; the build-and-push step below writes it, so the two never race for
+      # the same cache tag.
       - name: Build and run image tests
         uses: docker/bake-action@v7
         with:
           targets: test
-          set: |
-            *.cache-from=type=gha
-            *.cache-to=type=gha,mode=max
         env:
+          REGISTRY: ${{ steps.vars.outputs.registry }}
           GIT_SHA: ${{ steps.vars.outputs.git_sha }}
           GIT_REF: ${{ steps.vars.outputs.git_ref }}
           SOURCE_URL: ${{ steps.vars.outputs.source_url }}
@@ -93,11 +99,13 @@ jobs:
         uses: docker/bake-action@v7
         with:
           push: ${{ github.event_name != 'pull_request' }}
-          set: |
-            *.cache-from=type=gha
-            *.cache-to=type=gha,mode=max
         env:
           REGISTRY: ${{ steps.vars.outputs.registry }}
           SOURCE_URL: ${{ steps.vars.outputs.source_url }}
           GIT_SHA: ${{ steps.vars.outputs.git_sha }}
           GIT_REF: ${{ steps.vars.outputs.git_ref }}
+          # Layers are cached in the registry as <REGISTRY>/agent-base:buildcache.
+          # Reading is unconditional (a miss is not an error); writing needs push
+          # rights, so pull requests build read-only instead of publishing a cache
+          # produced by unmerged code.
+          CACHE_WRITE: ${{ github.event_name != 'pull_request' }}

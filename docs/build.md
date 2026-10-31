@@ -57,3 +57,22 @@ new tag in child images.
 pull request, then builds and pushes on pushes and tags. Registry and source URL
 are derived from the workflow context (GitHub or Gitea Actions); the bake file
 itself carries no identity.
+
+### Cache
+
+Build layers are cached in the container registry, at
+`<REGISTRY>/agent-base:buildcache`, and every build reads it. Writing needs push
+rights, so it is gated by `CACHE_WRITE` (default `false`): CI sets it on push and
+tag runs and leaves pull requests read-only. A failed cache read is a cache miss,
+not a build failure.
+
+The cache deliberately does not use the GitHub Actions cache service
+(`type=gha`): that service does not exist on self-hosted forges such as Gitea,
+and the registry cache works identically on GitHub, Gitea and a laptop:
+
+```bash
+REGISTRY=registry.example/team CACHE_WRITE=true scripts/bake.sh --push
+```
+
+To keep a separate cache per platform, append the platform to the cache tag in
+`docker-bake.hcl` when enabling multi-platform builds.
