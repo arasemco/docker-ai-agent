@@ -1,0 +1,148 @@
+# =============================================================================
+# Build and push the images — Gitea Actions only
+# =============================================================================
+# Runs on this repository's Gitea instance (git.omesa.net). There is no GitHub
+# path: the registry host, namespace and credentials all come from the Gitea
+# context, so nothing has to be configured per forge.
+#
+# What it produces, in order:
+#   agent-base:<version> + :latest   the base image every stack builds FROM
+#   opencode:<version>  + :latest
+#   dsh:<version>       + :latest
+#
+# Required repository secret:
+#   GIT_TOKEN   a Gitea access token with the "write:package" scope, created by
+#               the account that owns the registry namespace. Gitea's
+#               auto-injected actions token has no package scope and cannot be
+#               used to push images.
+#
+# Cache lives in the registry (<REGISTRY>/agent-base:buildcache), which works on
+# a self-hosted forge; the GitHub-only `type=gha` cache does not exist here.
+# Pull requests build without pushing and without logging in.
+# =============================================================================
+
+name: Build and push images
+
+on:
+  push:
+    branches: ["main"]
+    tags: ["v*.*.*"]
+  pull_request:
+    branches: ["main"]
+  workflow_dispatch: {}
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          # docker-bake.hcl's labels take the commit SHA and ref; a full history
+          # keeps tag lookups meaningful.
+          fetch-depth: 0
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      # Everything the bake file cannot know: where the registry is, which
+      # repository this is, and which commit is being built.
+      - name: Resolve registry and provenance
+        id: vars
+        run: |
+          set -euo pipefail
+
+          # GITHUB_SERVER_URL looks like https://git.omesa.net
+          registry_host="${GITHUB_SERVER_URL#*://}"
+          registry_host="${registry_host%/}"
+
+          owner="${GITHUB_REPOSITORY%%/*}"
+          registry="${registry_host}/${owner}"
+          source_url="${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}"
+
+          # refs/heads/main -> main, refs/tags/v1.2.3 -> v1.2.3
+          git_ref="${GITHUB_REF#refs/tags/}"
+          git_ref="${git_ref#refs/heads/}"
+
+          {
+            echo "registry_host=${registry_host}"
+            echo "registry=${registry}"
+            echo "source_url=${source_url}"
+            echo "git_sha=${GITHUB_SHA}"
+            echo "git_ref=${git_ref}"
+          } >> "${GITHUB_OUTPUT}"
+
+      # Fail with an actionable message rather than docker's generic denial.
+      # Gitea's automatic token is not usable here: it carries no package scope.
+      - name: Check registry credentials
+        if: github.event_name != 'pull_request'
+        env:
+          GIT_TOKEN: ${{ secrets.GIT_TOKEN }}
+        run: |
+          set -eu
+          if [ -z "${GIT_TOKEN}" ]; then
+            printf '%s\n' \
+              "::error::GIT_TOKEN is empty. Create a Gitea access token with the 'write:package'" \
+              "scope as ${GITHUB_REPOSITORY_OWNER}, then add it as a repository secret named GIT_TOKEN."
+            exit 1
+          fi
+
+      # The registry namespace is owned by the token's owner, which is the
+      # repository owner — not necessarily the user who triggered the run.
+      - name: Log in to the registry
+        if: github.event_name != 'pull_request'
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ steps.vars.outputs.registry_host }}
+          username: ${{ github.repository_owner }}
+          password: ${{ secrets.GIT_TOKEN }}
+
+      # The build-time checks: shellcheck on every script and the tool matrix,
+      # in the image's "test" stage. Exports nothing.
+      - name: Build the test stage
+        uses: docker/bake-action@v7
+        with:
+          targets: test
+        env:
+          REGISTRY: ${{ steps.vars.outputs.registry }}
+          SOURCE_URL: ${{ steps.vars.outputs.source_url }}
+          GIT_SHA: ${{ steps.vars.outputs.git_sha }}
+          GIT_REF: ${{ steps.vars.outputs.git_ref }}
+
+      # The stacks build FROM the base image, so the two bakes run in order: the
+      # base first, then the stacks against the tag it just produced.
+      - name: Build and push the base image
+        uses: docker/bake-action@v7
+        with:
+          targets: agent-base
+          push: ${{ github.event_name != 'pull_request' }}
+        env:
+          REGISTRY: ${{ steps.vars.outputs.registry }}
+          SOURCE_URL: ${{ steps.vars.outputs.source_url }}
+          GIT_SHA: ${{ steps.vars.outputs.git_sha }}
+          GIT_REF: ${{ steps.vars.outputs.git_ref }}
+          # Registry cache: read on every run, written only where push rights
+          # exist. A failed read is a cache miss, not a build failure.
+          CACHE_READ: "true"
+          CACHE_WRITE: ${{ github.event_name != 'pull_request' }}
+
+      - name: Build and push the stacks
+        uses: docker/bake-action@v7
+        with:
+          targets: opencode dsh
+          push: ${{ github.event_name != 'pull_request' }}
+        env:
+          REGISTRY: ${{ steps.vars.outputs.registry }}
+          SOURCE_URL: ${{ steps.vars.outputs.source_url }}
+          GIT_SHA: ${{ steps.vars.outputs.git_sha }}
+          GIT_REF: ${{ steps.vars.outputs.git_ref }}
+          CACHE_READ: "true"
+          CACHE_WRITE: ${{ github.event_name != 'pull_request' }}

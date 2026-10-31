@@ -46,6 +46,7 @@ docker-compose.yml     one file: anchored sandbox/env/volume sections plus one
 stacks/<name>/         image/ (Dockerfile + files), docs/, examples/
 docker-bake.hcl        targets: agent-base, opencode, dsh (+ dev and test)
 scripts/               bake.sh (build + provenance), smoke.sh (runtime check)
+.gitea/workflows/      CI for this repository's Gitea instance (build + push)
 docs/                  documentation for users
 .agents/               orientation, checks and skills for coding agents
 ```

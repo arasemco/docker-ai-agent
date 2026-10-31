@@ -53,38 +53,47 @@ new tag in child images.
 
 ## CI
 
-`.github/workflows/docker-build-push.yml` runs the test target on every push and
-pull request, then builds and pushes on pushes and tags. Registry and source URL
-are derived from the workflow context (GitHub or Gitea Actions); the bake file
-itself carries no identity.
+The workflow lives at [`.gitea/workflows/build.yml`](../.gitea/workflows/build.yml)
+and targets this repository's Gitea instance only — there is no second forge to
+satisfy, so the registry host and namespace are derived from the Gitea context
+rather than configured.
+
+On every push and pull request it:
+
+1. resolves the registry (`<gitea host>/<owner>`) and the commit metadata;
+2. builds the base image's `test` stage (shellcheck plus the tool matrix);
+3. on pushes and tags: logs in, builds and pushes `agent-base`;
+4. then builds and pushes `opencode` and `dsh`, which build `FROM` the tag the
+   previous step just pushed.
+
+Pull requests run the same builds without logging in and without pushing, so a
+broken Dockerfile or script fails the check and nothing is published.
 
 ### Registry credentials
 
-On GitHub Actions the built-in `GITHUB_TOKEN` logs in to GHCR. A self-hosted
-Gitea registry does not accept the auto-injected actions token — it carries no
-package scope — so the workflow expects a repository secret named **`GIT_TOKEN`**:
-a Gitea access token created by the account that owns the registry namespace,
-with the `write:package` scope. The workflow checks for it before logging in and
-fails with that instruction rather than docker's generic denial.
+The workflow needs one repository secret:
 
-The login username is the repository owner (the token's owner), not the actor
-that triggered the run.
+| Secret | Contents |
+|---|---|
+| `GIT_TOKEN` | a Gitea access token with the **`write:package`** scope, created by the account that owns the registry namespace |
+
+Gitea's auto-injected actions token has no package scope and cannot push images,
+so it is not an alternative. If the secret is missing the workflow fails at a
+dedicated check with that instruction, before docker login would produce a
+generic denial. The login username is the repository owner, because that is the
+account the token belongs to — not necessarily the user who triggered the run.
 
 ### Cache
 
-Build layers are cached in the container registry, at
-`<REGISTRY>/agent-base:buildcache`, and every build reads it. Writing needs push
-rights, so it is gated by `CACHE_WRITE` (default `false`): CI sets it on push and
-tag runs and leaves pull requests read-only. A failed cache read is a cache miss,
-not a build failure.
+Build layers are cached in the registry at `<REGISTRY>/agent-base:buildcache`.
+The workflow reads it on every run and writes it only where push rights exist
+(`CACHE_READ` / `CACHE_WRITE` in the bake file). A failed read is a cache miss,
+not a failure.
 
-The cache deliberately does not use the GitHub Actions cache service
-(`type=gha`): that service does not exist on self-hosted forges such as Gitea,
-and the registry cache works identically on GitHub, Gitea and a laptop:
+The GitHub-only `type=gha` cache is not used: it needs the GitHub Actions cache
+service, which a self-hosted forge does not provide.
 
-```bash
-REGISTRY=registry.example/team CACHE_WRITE=true scripts/bake.sh --push
-```
+### Image publishing
 
-To keep a separate cache per platform, append the platform to the cache tag in
-`docker-bake.hcl` when enabling multi-platform builds.
+Each run pushes two tags per image: the version tag from the bake file
+(`BASE_VERSION`, `OPENCODE_VERSION`, `DSH_VERSION`) and `latest`.

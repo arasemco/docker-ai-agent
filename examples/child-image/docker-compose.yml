@@ -1,0 +1,37 @@
+# =============================================================================
+# Example: a child stack on the base image
+# =============================================================================
+# This file carries ONLY what is specific to the example agent. The sandbox —
+# s6 services, rootless Docker devices/seccomp, proxy values and limits — is
+# inherited from the anchors in the repository's docker-compose.yml; copy the
+# `x-sandbox` / `x-agent-env` blocks into your own file to stand alone.
+#
+#   cp -r examples/child-image /tmp/my-agent && cd /tmp/my-agent
+#   docker compose -f container/docker-compose.yml up -d --build
+#
+# Inside this repository the stacks under stacks/ work the same way.
+# =============================================================================
+
+services:
+  example-cli:
+    image: ${EXAMPLE_IMAGE:-example-cli:local}
+    pull_policy: build
+    build:
+      # Relative to the directory this file lives in.
+      context: .
+      dockerfile: Dockerfile
+      args:
+        AGENT_BASE: ${AGENT_BASE:-agent-base:1.4.1}
+        CLI_VERSION: ${CLI_VERSION:-1.0.0}
+    hostname: example-cli
+    # Args for AGENT_CMD (the image sets it to example-cli).
+    command: ["--help"]
+    volumes:
+      # The CLI's own state. Named volume by default so its ownership matches
+      # the image's agent user; point the variable at a host path to bind.
+      - ${EXAMPLE_HOME_HOST:-example-cli-home}:/home/agent/.config/example-cli
+
+volumes:
+  # Required by the sandbox anchors.
+  agent-docker:
+  example-cli-home:
