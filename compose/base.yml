@@ -1,24 +1,13 @@
 # =============================================================================
-# compose/base.yml — the minimum every agent container needs
+# compose/base.yml — the service skeleton every agent container shares
 # =============================================================================
-# This is a FRAGMENT, not a stack. It defines the service skeleton that other
-# fragments overlay, all keyed to the same canonical service name so compose's
-# `-f` merging lines them up:
+# One fragment, one concern. This one owns only the service's identity and the
+# AGENT_* toggles; devices, proxy, limits, mounts and the build each live in
+# their own file (see the others in this directory, or ../docker-compose.yml
+# for the default combination).
 #
-#   base.yml     service skeleton, AGENT_* toggles, daemon data volume
-#   daemon.yml   devices + seccomp exceptions the rootless daemon needs
-#   proxy.yml    outbound proxy pass-through (empty unless you set it)
-#   limits.yml   CPU/memory limits (values from AGENT_CPUS / AGENT_MEMORY)
-#   mounts.yml   bind the agent's workspace to a host directory
-#
-# scripts/compose.sh assembles the ones you ask for and runs compose:
-#
-#   scripts/compose.sh --with daemon,proxy -- up -d --build
-#
-# A child stack (a repo with its own Dockerfile) reuses the same fragments:
-# scripts/compose.sh renames the canonical service key to the child's service
-# name, because `-f` merging only works between files that name the same
-# service. See ../examples/child-image.
+# Loaded either by include (root docker-compose.yml) or by scripts/compose.sh
+# (-f). Both rely on every fragment keying the same canonical service name.
 # =============================================================================
 
 services:
@@ -32,18 +21,11 @@ services:
     hostname: ${AGENT_HOSTNAME:-agent}
 
     environment:
-      # The agent's working directory. Mount something over it (mounts.yml) to
-      # work on real files; otherwise it is just a directory in the container.
+      # Working directory. Mount something over it (mounts.yml) to work on real
+      # files; otherwise it is just a directory in the container.
       - AGENT_WORKSPACE=/home/${AGENT_USER:-agent}/Projects
       # Service toggles and restart budgets (see the image's README).
       - AGENT_DOCKERD=${AGENT_DOCKERD:-1}
       - AGENT_DOCKERD_TIMEOUT=${AGENT_DOCKERD_TIMEOUT:-30}
       - AGENT_DOCKERD_MAX_RESTARTS=${AGENT_DOCKERD_MAX_RESTARTS:-3}
       - AGENT_RESTART_MAX=${AGENT_RESTART_MAX:-3}
-
-    volumes:
-      # Images, containers and build cache of the in-container rootless daemon.
-      # A named volume, not a bind mount: it holds files owned by subordinate
-      # uids and losing it would discard the agent's image cache on every
-      # recreate. Declare the volume in the composing file.
-      - ${AGENT_DOCKER_VOLUME:-agent-docker}:/home/${AGENT_USER:-agent}/.local/share/docker

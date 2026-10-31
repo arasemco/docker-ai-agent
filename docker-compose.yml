@@ -1,0 +1,31 @@
+# =============================================================================
+# agent-base — minimal working stack
+# =============================================================================
+# `docker compose up -d --build` and you have the image running, with the s6
+# services and a usable inner Docker daemon. The fragments it includes are the
+# same ones scripts/compose.sh can combine differently; nothing is duplicated:
+#
+#   compose/base.yml    service skeleton + AGENT_* toggles
+#   compose/daemon.yml  devices/seccomp + the daemon's data volume
+#   compose/image.yml   build image/ + default command + workspace volume
+#
+# Want proxy, limits or a host-mounted workspace? Add the matching fragment
+# instead of editing this file:
+#
+#   make up WITH=daemon,proxy,limits,mounts
+#   # or: scripts/compose.sh --with daemon,proxy,limits,mounts \
+#   #       --file compose/image.yml -- up -d --build
+#
+#   docker compose exec --user 1000 agent-base bash
+# =============================================================================
+
+name: agent-base
+
+include:
+  - compose/base.yml
+  - compose/daemon.yml
+  - compose/image.yml
+
+# No volumes block here: each fragment declares the volume it mounts
+# (daemon.yml -> agent-docker, image.yml -> agent-projects), so include and -f
+# both work without the composing file knowing about them.

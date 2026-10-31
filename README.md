@@ -23,11 +23,11 @@ make test
 make smoke
 ```
 
-Plain bake and compose work too:
+Or without the makefile:
 
 ```bash
-scripts/bake.sh                          # build the default target
-docker compose -f compose/harness.yml up -d --build
+docker compose up -d --build     # root file: base + daemon + image
+scripts/bake.sh                  # build the image via bake
 ```
 
 ## Using it from a child image
@@ -74,22 +74,28 @@ service. The CLI itself still runs as the agent user.
 
 ## Compose fragments
 
-`compose/` holds one fragment per concern, not one monolith. A stack includes
-exactly what it needs; `scripts/compose.sh` assembles the `-f` list:
+`compose/` holds one fragment per concern, not one monolith. Each file owns
+exactly one thing:
 
-| Fragment | Included | Adds |
+| Fragment | Owns | Included by |
 |---|---|---|
-| `base.yml` | always | service skeleton, `AGENT_*` toggles, daemon data volume |
-| `daemon.yml` | `--with daemon` (default) | `/dev/fuse`, `/dev/net/tun`, `seccomp:unconfined`, `systempaths=unconfined` |
-| `proxy.yml` | `--with proxy` | outbound proxy pass-through (values from `.env`, none baked in) |
-| `limits.yml` | `--with limits` | CPU/memory limits from `AGENT_CPUS` / `AGENT_MEMORY` |
-| `mounts.yml` | `--with mounts` | bind the workspace to `AGENT_PROJECTS_HOST` (default `~/Projects`) |
+| `base.yml` | service skeleton + `AGENT_*` toggles | always |
+| `daemon.yml` | `/dev/fuse`, `/dev/net/tun`, seccomp exceptions, `agent-docker` volume | `--with daemon` (default) |
+| `image.yml` | build of `image/`, default command, `agent-projects` volume | the root file and `make` |
+| `proxy.yml` | outbound proxy pass-through (no values baked in) | `--with proxy` |
+| `limits.yml` | CPU/memory from `AGENT_CPUS` / `AGENT_MEMORY` | `--with limits` |
+| `mounts.yml` | bind the workspace to `AGENT_PROJECTS_HOST` (default `~/Projects`) | `--with mounts` |
+
+The root [docker-compose.yml](docker-compose.yml) is the minimal working stack:
+it `include:`s `base`, `daemon` and `image`, so nothing is copied or kept in
+sync by hand.
 
 ```bash
-scripts/compose.sh -- up -d --build                       # base + daemon
-scripts/compose.sh --with daemon,proxy -- up -d           # + proxy
-scripts/compose.sh --with daemon,limits,mounts -- up -d   # + limits + host mount
-make up WITH=daemon,proxy,limits                          # the same via make
+docker compose up -d --build                              # base + daemon + image
+docker compose exec --user 1000 agent-base bash
+
+scripts/compose.sh --with daemon,proxy --file compose/image.yml -- up -d   # + proxy
+make up WITH=daemon,proxy,limits                          # + limits, via make
 ```
 
 Fragments are written for the canonical service name `agent-base`. When a child
@@ -97,9 +103,10 @@ stack asks for another name, `compose.sh` renames the key in a throwaway copy â€
 `-f` merging only lines up services that share a name, and compose accepts only
 a single `extends` per service, so stacking fragments that way is not possible.
 
-Relative paths (build contexts, bind sources) are pinned with
-`--project-directory`, so `context: ./image` always means the *calling* repo's
-`image/`, not a fragment's directory.
+Compose resolves relative paths against the project directory, which it infers
+from the first file it is given. `compose.sh` anchors that to the directory of
+the `--file` stack, so `context: ./image` means "this repo's image/" for a child
+and `context: ../image` means the same for agent-base's own `compose/image.yml`.
 
 Anything beyond the fragments (extra binds, per-host tweaks) goes in a
 gitignored `compose/local.yml`, which `compose.sh` appends automatically.
@@ -230,8 +237,8 @@ the container, so uid 1000 cannot write them.
 |---|---|
 | `image/Dockerfile` | the image; `test` stage runs shellcheck + selftest |
 | `image/rootfs/` | files copied into the image: entrypoint, agent-run, healthcheck, selftest, s6 services, cont-init, hooks dir |
-| `compose/{base,daemon,proxy,limits,mounts}.yml` | per-concern fragments (see "Compose fragments") |
-| `compose/harness.yml` | this repo's own test stack (builds `image/`) |
+| `docker-compose.yml` | the minimal working stack (`include:` of base + daemon + image) |
+| `compose/{base,daemon,image,proxy,limits,mounts}.yml` | one fragment per concern (see "Compose fragments") |
 | `scripts/compose.sh` | assembles the fragments, renames the service for a child, merges `compose/local.yml` |
 | `examples/` | env examples and a child-image example; not used by the build |
 | `docker-bake.hcl` | bake targets, pinned versions, neutral defaults |

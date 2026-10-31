@@ -1,0 +1,45 @@
+# =============================================================================
+# compose/image.yml — build this repository's image and keep it running
+# =============================================================================
+# One fragment, one concern: what to build (image/) and what it should do by
+# default. Everything else — the service skeleton, devices, proxy, limits,
+# mounts — comes from the neighbouring fragments, so this file stays the same
+# whether you run it alone or with extras.
+#
+#   docker compose up -d --build        # root docker-compose.yml (base+daemon+this)
+#   make up WITH=daemon,proxy           # scripts/compose.sh with more fragments
+# =============================================================================
+
+# The stack file is the first --file, so its directory decides compose's
+# project directory (compose/, here) and thus the default project name. Pin it
+# so script mode and the root docker-compose.yml agree on names.
+name: agent-base
+
+services:
+  agent-base:
+    image: ${AGENT_IMAGE:-agent-base:local}
+    pull_policy: build
+    build:
+      # Relative to THIS file's directory (compose/): compose resolves paths in
+      # an included or extended fragment against the fragment, and
+      # scripts/compose.sh anchors --project-directory the same way.
+      context: ../image
+      dockerfile: Dockerfile
+      target: agent-base
+      args:
+        AGENT_USER: ${AGENT_USER:-agent}
+        AGENT_UID: ${AGENT_UID:-1000}
+        AGENT_GID: ${AGENT_GID:-1000}
+        DOCKER_VERSION: ${DOCKER_VERSION:-29.8.1}
+        UV_VERSION: ${UV_VERSION:-0.13.6}
+    # The entrypoint hands CMD to the agent service, which runs
+    # `bash -lc "sleep infinity"` — enough to keep the container up for exec.
+    command: ["-lc", "sleep infinity"]
+    volumes:
+      # Volume-backed workspace: the stack must work on any host, including
+      # ones whose Docker is rootless (where host bind mounts appear
+      # root-owned inside the container).
+      - agent-projects:/home/${AGENT_USER:-agent}/Projects
+
+volumes:
+  agent-projects:

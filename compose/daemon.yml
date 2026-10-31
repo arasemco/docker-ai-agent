@@ -1,23 +1,21 @@
 # =============================================================================
-# compose/daemon.yml — what the in-container rootless Docker daemon needs
+# compose/daemon.yml — everything the in-container rootless daemon needs
 # =============================================================================
-# Select it with `--with daemon` (scripts/compose.sh does by default, since an
-# agent image is normally used together with its inner daemon):
-#
-#   scripts/compose.sh --with daemon -- up -d
-#
+# One fragment, one concern: the hosts grants and the volume its data lives in.
 # Skip it for a container that only needs the CLI side (AGENT_DOCKERD=0): the
-# agent works fine without these, only `docker` inside it is unavailable.
+# agent works fine without it, only `docker` inside the container is gone.
 #
 # Why each entry:
 #   seccomp:unconfined / systempaths=unconfined
 #       rootlesskit creates user and mount namespaces, which the default
 #       seccomp profile and masked /proc paths block.
-#   /dev/fuse
-#       fuse-overlayfs, the storage driver that works on top of the
-#       container's own overlay root.
-#   /dev/net/tun
-#       slirp4netns, the daemon's user-mode networking.
+#   /dev/fuse         fuse-overlayfs, the storage driver that works on top of
+#                     the container's own overlay root.
+#   /dev/net/tun      slirp4netns, the daemon's user-mode networking.
+#   the volume        images, containers and build cache. A named volume, not a
+#                     bind mount: it holds files owned by subordinate uids, and
+#                     losing it would throw away the image cache on every
+#                     recreate. Declare it in the composing file.
 # =============================================================================
 
 services:
@@ -28,3 +26,11 @@ services:
     devices:
       - /dev/fuse
       - /dev/net/tun
+    volumes:
+      - ${AGENT_DOCKER_VOLUME:-agent-docker}:/home/${AGENT_USER:-agent}/.local/share/docker
+
+volumes:
+  # Declared here because this fragment is what mounts it; compose only needs
+  # it declared somewhere in the project. Set AGENT_DOCKER_VOLUME to a host
+  # path to bind instead, and drop this declaration (or leave it: unused).
+  agent-docker:

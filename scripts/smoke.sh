@@ -14,9 +14,9 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 
 # Same assembly the makefile uses: fragments (WITH, default daemon) plus the
-# harness overlay; scripts/compose.sh also merges compose/local.yml when present.
+# image + fragments; scripts/compose.sh also merges compose/local.yml when present.
 compose() {
-    scripts/compose.sh --with "${WITH:-daemon}" --file compose/harness.yml -- "$@"
+    scripts/compose.sh --with "${WITH:-daemon}" --file compose/image.yml -- "$@"
 }
 
 cleanup() {
@@ -31,7 +31,7 @@ trap cleanup EXIT
 echo "== validating compose config"
 compose config >/dev/null
 
-echo "== building and starting the harness"
+echo "== building and starting the stack"
 compose up --detach --build --wait --wait-timeout 180 2>&1 | tail -n 5
 
 echo "== in-container selftest (tools, no daemon)"

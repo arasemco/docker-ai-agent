@@ -10,7 +10,9 @@ SERVICE   ?= agent-base
 SHELL_BIN ?= bash
 WITH      ?= daemon
 
-COMPOSE := scripts/compose.sh --with $(WITH) --file compose/harness.yml --
+# Same fragments the root docker-compose.yml includes, but selectable: compose
+# resolves paths against the stack file's directory, hence --file compose/image.yml.
+COMPOSE := scripts/compose.sh --with $(WITH) --file compose/image.yml --
 
 .PHONY: default build test smoke up down ps logs exec debug config
 
@@ -19,15 +21,16 @@ default:
 	@echo "  make build              build agent-base via scripts/bake.sh"
 	@echo "  make test               build the test stage: shellcheck + tool selftest"
 	@echo "  make smoke              run scripts/smoke.sh against a real container"
-	@echo "  make up                 start the harness stack (fragments: $(WITH))"
+	@echo "  make up                 start the stack (fragments: $(WITH))"
 	@echo "  make down               stop it and drop its volumes"
-	@echo "  make logs               follow the harness logs"
+	@echo "  make logs               follow the stack logs"
 	@echo "  make exec               shell in it as the agent user"
 	@echo "  make debug              shell in it as root"
 	@echo "  make config             print the merged compose config"
 	@echo ""
-	@echo "  WITH=<fragments>  add compose fragments: daemon, proxy, limits, mounts"
+	@echo "  WITH=<fragments>  compose fragments: daemon (default), proxy, limits, mounts"
 	@echo "  compose/local.yml is merged automatically when present (gitignored)."
+	@echo "  Plain 'docker compose up' also works: the root file includes base+daemon+image."
 
 build:
 	scripts/bake.sh

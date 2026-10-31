@@ -107,12 +107,19 @@ if [ -f "${repo_root}/compose/local.yml" ]; then
     compose_files+=(-f "${repo_root}/compose/local.yml")
 fi
 
-# Relative paths in any of these files (build contexts, dockerfiles, bind
-# sources) are otherwise resolved against the FIRST -f file's directory — which
-# for a child stack is agent-base/compose/, i.e. the wrong tree. Pinning the
-# project directory to the calling project keeps `./image` meaning "image/ in
-# this repo", whatever order the fragments are merged in.
-project_dir="${COMPOSE_PROJECT_DIR:-$PWD}"
+# Compose resolves relative paths (build contexts, dockerfiles, bind sources)
+# against the project directory, which it would otherwise infer from the first
+# -f file. Anchor it to the directory of the stack file that was passed with
+# --file: for a child stack that is its own repo root (so "context: ./image"
+# means that repo's image/), for agent-base itself compose/image.yml (so its
+# "../image" still points at the repo's image/).
+if [ -n "${COMPOSE_PROJECT_DIR:-}" ]; then
+    project_dir="${COMPOSE_PROJECT_DIR}"
+elif [ "${#extra_files[@]}" -gt 0 ]; then
+    project_dir="$(cd "$(dirname "${extra_files[0]}")" && pwd)"
+else
+    project_dir="$PWD"
+fi
 
 if [ "${COMPOSE_DEBUG:-0}" = 1 ]; then
     printf '[compose] docker compose --project-directory %s %s %s\n' \
