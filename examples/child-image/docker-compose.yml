@@ -1,21 +1,27 @@
 # =============================================================================
-# Example: a child stack that extends agent-base/compose/base.yml
+# Example: a child stack on agent-base's compose fragments
 # =============================================================================
-#   docker compose up -d --build
+# This file carries ONLY what is specific to the example agent. The sandbox —
+# s6 services, rootless Docker devices/seccomp, optional proxy/limits/mounts —
+# is assembled by agent-base's scripts/compose.sh, which also renames the
+# fragments' canonical service (`agent-base`) to the service name below.
 #
-# Nothing here is host-specific: no proxy values, no host paths, no resource
-# limits. Add those with the fragments in ../compose/ or a gitignored local
-# override file (see the repo README's "Overrides" section).
+#   cp -r examples/child-image /tmp/my-agent && cd /tmp/my-agent
+#   /path/to/agent-base/scripts/compose.sh \
+#       --service example-cli \
+#       --fragments /path/to/agent-base/compose \
+#       --file docker-compose.yml -- up -d --build
+#
+# A real child repo wraps that command in its own scripts/compose.sh (see the
+# sibling opencode repo) so callers just run `make up`.
 # =============================================================================
 
 services:
   example-cli:
-    extends:
-      file: ../../compose/base.yml
-      service: agent-base
     image: ${EXAMPLE_IMAGE:-example-cli:local}
     pull_policy: build
     build:
+      # Relative to the project directory (the dir you run compose.sh from).
       context: .
       dockerfile: Dockerfile
       args:
@@ -30,6 +36,6 @@ services:
       - ${EXAMPLE_HOME_HOST:-example-cli-home}:/home/agent/.config/example-cli
 
 volumes:
-  # Required by compose/base.yml (extends cannot carry top-level volumes).
+  # Required by compose/base.yml.
   agent-docker:
   example-cli-home:

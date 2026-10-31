@@ -1,0 +1,30 @@
+# =============================================================================
+# compose/daemon.yml — what the in-container rootless Docker daemon needs
+# =============================================================================
+# Select it with `--with daemon` (scripts/compose.sh does by default, since an
+# agent image is normally used together with its inner daemon):
+#
+#   scripts/compose.sh --with daemon -- up -d
+#
+# Skip it for a container that only needs the CLI side (AGENT_DOCKERD=0): the
+# agent works fine without these, only `docker` inside it is unavailable.
+#
+# Why each entry:
+#   seccomp:unconfined / systempaths=unconfined
+#       rootlesskit creates user and mount namespaces, which the default
+#       seccomp profile and masked /proc paths block.
+#   /dev/fuse
+#       fuse-overlayfs, the storage driver that works on top of the
+#       container's own overlay root.
+#   /dev/net/tun
+#       slirp4netns, the daemon's user-mode networking.
+# =============================================================================
+
+services:
+  agent-base:
+    security_opt:
+      - seccomp:unconfined
+      - systempaths=unconfined
+    devices:
+      - /dev/fuse
+      - /dev/net/tun

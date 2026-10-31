@@ -1,0 +1,16 @@
+# =============================================================================
+# compose/limits.yml — CPU/memory limits, as an opt-in fragment
+# =============================================================================
+#   AGENT_CPUS=4 AGENT_MEMORY=8G scripts/compose.sh --with daemon,limits -- up -d
+#
+# Defaults are deliberately modest: a shared base should not assume a 32-core
+# workstation. Set AGENT_CPUS / AGENT_MEMORY in .env to match your machine.
+# =============================================================================
+
+services:
+  agent-base:
+    deploy:
+      resources:
+        limits:
+          cpus: "${AGENT_CPUS:-2}"
+          memory: "${AGENT_MEMORY:-4G}"

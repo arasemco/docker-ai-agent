@@ -13,14 +13,10 @@ set -euo pipefail
 
 cd "$(dirname "$0")/.."
 
-local_compose=""
-if [ -f compose/local.yml ]; then
-    local_compose="-f compose/local.yml"
-fi
-
+# Same assembly the makefile uses: fragments (WITH, default daemon) plus the
+# harness overlay; scripts/compose.sh also merges compose/local.yml when present.
 compose() {
-    # shellcheck disable=SC2086 # word splitting of the optional -f is intended
-    docker compose -f compose/harness.yml $local_compose "$@"
+    scripts/compose.sh --with "${WITH:-daemon}" --file compose/harness.yml -- "$@"
 }
 
 cleanup() {

@@ -43,15 +43,12 @@ ENV AGENT_CMD=my-agent-cli
 ```
 
 ```yaml
-# my-agent/docker-compose.yml
+# my-agent/docker-compose.yml — just the agent-specific bits
 services:
   my-agent:
-    extends:
-      file: ../agent-base/compose/base.yml
-      service: agent-base
     image: my-agent:local
     build:
-      context: .
+      context: ./image
       args:
         AGENT_BASE: agent-base:1.1.0
     command: ["--help"]                  # args for AGENT_CMD
@@ -62,12 +59,50 @@ volumes:
   my-agent-home:
 ```
 
+```bash
+# the sandbox comes from the fragments; --service renames them onto "my-agent"
+../agent-base/scripts/compose.sh --service my-agent \
+    --fragments ../agent-base/compose --file docker-compose.yml -- up -d --build
+```
+
 A complete, runnable version of this lives in
 [examples/child-image](examples/child-image).
 
 Do **not** end a child image with `USER 1000:1000`: `/init` must be PID 1 as
 root so it can prepare `/run`, fix mount-point ownership and drop privileges per
 service. The CLI itself still runs as the agent user.
+
+## Compose fragments
+
+`compose/` holds one fragment per concern, not one monolith. A stack includes
+exactly what it needs; `scripts/compose.sh` assembles the `-f` list:
+
+| Fragment | Included | Adds |
+|---|---|---|
+| `base.yml` | always | service skeleton, `AGENT_*` toggles, daemon data volume |
+| `daemon.yml` | `--with daemon` (default) | `/dev/fuse`, `/dev/net/tun`, `seccomp:unconfined`, `systempaths=unconfined` |
+| `proxy.yml` | `--with proxy` | outbound proxy pass-through (values from `.env`, none baked in) |
+| `limits.yml` | `--with limits` | CPU/memory limits from `AGENT_CPUS` / `AGENT_MEMORY` |
+| `mounts.yml` | `--with mounts` | bind the workspace to `AGENT_PROJECTS_HOST` (default `~/Projects`) |
+
+```bash
+scripts/compose.sh -- up -d --build                       # base + daemon
+scripts/compose.sh --with daemon,proxy -- up -d           # + proxy
+scripts/compose.sh --with daemon,limits,mounts -- up -d   # + limits + host mount
+make up WITH=daemon,proxy,limits                          # the same via make
+```
+
+Fragments are written for the canonical service name `agent-base`. When a child
+stack asks for another name, `compose.sh` renames the key in a throwaway copy —
+`-f` merging only lines up services that share a name, and compose accepts only
+a single `extends` per service, so stacking fragments that way is not possible.
+
+Relative paths (build contexts, bind sources) are pinned with
+`--project-directory`, so `context: ./image` always means the *calling* repo's
+`image/`, not a fragment's directory.
+
+Anything beyond the fragments (extra binds, per-host tweaks) goes in a
+gitignored `compose/local.yml`, which `compose.sh` appends automatically.
 
 ## What is inside
 
@@ -170,22 +205,24 @@ start from the examples:
 
 | File (gitignored) | Start from | Holds |
 |---|---|---|
-| `compose/local.yml` | `examples/compose/*.yml` | host mounts, CPU/memory limits, per-host tweaks |
-| `.env` | `.env.example`, `examples/env/proxy-squid.env` | proxy URLs, volume names, ports |
+| `compose/local.yml` | the fragments, plus your own binds | per-host tweaks beyond the fragments |
+| `.env` | `.env.example`, `examples/env/proxy-squid.env` | proxy URLs, limits, volume names, ports |
 
-`make up`/`make smoke` merge `compose/local.yml` automatically when it exists:
+`compose.sh` merges `compose/local.yml` automatically when it exists, so a
+typical setup needs no flags at all:
 
 ```bash
 cp .env.example .env
-cat examples/env/proxy-squid.env >> .env          # only if you need a proxy
-cp examples/compose/limits.yml compose/local.yml  # only if you want limits
-make up
+cat examples/env/proxy-squid.env >> .env     # only if you need a proxy
+echo 'AGENT_CPUS=8' >> .env                  # only if you want limits
+echo 'AGENT_MEMORY=32G' >> .env
+make up WITH=daemon,proxy,limits
 ```
 
-`examples/compose/host-mounts.yml` shows the host-path variant (and the two
-host-path rules that bite: an auto-created bind source is root-owned, and on a
-host whose Docker is rootless, bind mounts are root-owned *inside* the
-container).
+Two host-path rules that bite when you add binds of your own: a missing bind
+source is auto-created root-owned (the image's cont-init then refuses to start),
+and on a host whose Docker is rootless, bind mounts appear root-owned *inside*
+the container, so uid 1000 cannot write them.
 
 ## Layout
 
@@ -193,9 +230,10 @@ container).
 |---|---|
 | `image/Dockerfile` | the image; `test` stage runs shellcheck + selftest |
 | `image/rootfs/` | files copied into the image: entrypoint, agent-run, healthcheck, selftest, s6 services, cont-init, hooks dir |
-| `compose/base.yml` | the generic service definition children `extends` |
+| `compose/{base,daemon,proxy,limits,mounts}.yml` | per-concern fragments (see "Compose fragments") |
 | `compose/harness.yml` | this repo's own test stack (builds `image/`) |
-| `examples/` | copy-paste fragments and a child-image example; not used by the build |
+| `scripts/compose.sh` | assembles the fragments, renames the service for a child, merges `compose/local.yml` |
+| `examples/` | env examples and a child-image example; not used by the build |
 | `docker-bake.hcl` | bake targets, pinned versions, neutral defaults |
 | `scripts/bake.sh` | fills the provenance variables from git (see "Publishing") and runs bake from the repo root |
 | `scripts/smoke.sh` | runtime validation in a real container |

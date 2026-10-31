@@ -1,0 +1,32 @@
+# =============================================================================
+# compose/proxy.yml — outbound proxy, as an opt-in fragment
+# =============================================================================
+#   scripts/compose.sh --with daemon,proxy -- up -d
+#
+# Deliberately NOT part of base.yml: a proxy URL is deployment-specific, and
+# empty pass-throughs in the base would set HTTP_PROXY="" in every container.
+#
+# The values come from the environment (.env or the shell) — this file carries
+# none. Both cases are set because tools disagree about which one they honour;
+# a variable you leave unset expands to an empty string, which tools treat as
+# "no proxy".
+#
+# NO_PROXY must list whatever the container reaches directly: loopback, and any
+# local model endpoint or registry. The inner Docker daemon inherits these too,
+# so its pulls go through the same proxy.
+#
+#   cp .env.example .env
+#   cat examples/env/proxy-squid.env >> .env      # example values
+# =============================================================================
+
+services:
+  agent-base:
+    environment:
+      - HTTP_PROXY=${HTTP_PROXY:-}
+      - HTTPS_PROXY=${HTTPS_PROXY:-}
+      - ALL_PROXY=${ALL_PROXY:-}
+      - NO_PROXY=${NO_PROXY:-}
+      - http_proxy=${http_proxy:-}
+      - https_proxy=${https_proxy:-}
+      - all_proxy=${all_proxy:-}
+      - no_proxy=${no_proxy:-}

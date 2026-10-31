@@ -1,44 +1,42 @@
-# agent-base — build/test helpers. Everything runs from the repo root; the
-# image build context is image/ (see docker-bake.hcl).
+# agent-base — build/test helpers.
+#
+# The stack is assembled from compose fragments (see compose/ and
+# scripts/compose.sh): base.yml always, plus whatever WITH lists.
+#
+#   make up                      # base + daemon
+#   make up WITH=daemon,proxy    # + outbound proxy (values from .env)
+#   make up WITH=daemon,limits,mounts
 SERVICE   ?= agent-base
 SHELL_BIN ?= bash
+WITH      ?= daemon
 
-# Harness stack, plus compose/local.yml when present (gitignored, machine
-# specific: proxy, host mounts, limits — see README.md#overrides).
-LOCAL_COMPOSE := $(wildcard compose/local.yml)
-COMPOSE := docker compose -f compose/harness.yml $(if $(LOCAL_COMPOSE),-f $(LOCAL_COMPOSE))
+COMPOSE := scripts/compose.sh --with $(WITH) --file compose/harness.yml --
 
 .PHONY: default build test smoke up down ps logs exec debug config
 
 default:
 	@echo "Usage:"
-	@echo "  make build              build agent-base via scripts/bake.sh (pinned versions)"
+	@echo "  make build              build agent-base via scripts/bake.sh"
 	@echo "  make test               build the test stage: shellcheck + tool selftest"
 	@echo "  make smoke              run scripts/smoke.sh against a real container"
-	@echo "  make up                 run the harness stack (compose/harness.yml)"
+	@echo "  make up                 start the harness stack (fragments: $(WITH))"
 	@echo "  make down               stop it and drop its volumes"
 	@echo "  make logs               follow the harness logs"
 	@echo "  make exec               shell in it as the agent user"
 	@echo "  make debug              shell in it as root"
-	@echo "  make config             validate and print the effective compose config"
+	@echo "  make config             print the merged compose config"
 	@echo ""
-	@echo "  Optional: a gitignored compose/local.yml is merged automatically"
-	@echo "  (start from examples/compose/*.yml). SERVICE=$(SERVICE) SHELL_BIN=$(SHELL_BIN)."
+	@echo "  WITH=<fragments>  add compose fragments: daemon, proxy, limits, mounts"
+	@echo "  compose/local.yml is merged automatically when present (gitignored)."
 
-# scripts/bake.sh, not `docker buildx bake` directly: it exports GIT_SHA/GIT_REF
-# (OCI labels) and runs from the repo root so the relative context resolves.
 build:
 	scripts/bake.sh
 
-# Builds the Dockerfile's "test" stage: shellcheck on every script plus a
-# tool-matrix selftest. Needs no devices or daemon.
 test:
 	scripts/bake.sh test
 
-# Builds and runs the image with the devices/seccomp profile the daemon needs,
-# then validates it from inside (scripts/smoke.sh).
 smoke:
-	scripts/smoke.sh
+	WITH=$(WITH) scripts/smoke.sh
 
 up:
 	$(COMPOSE) up --detach --build

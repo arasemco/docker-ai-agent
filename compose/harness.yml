@@ -2,27 +2,25 @@
 # compose/harness.yml — this repository's own test stack
 # =============================================================================
 # Builds image/ and keeps a container alive so scripts/smoke.sh (or `make
-# shell`) can poke at it. It is not meant to be deployed and it sets no
-# values you would deploy with: no proxy, no host mounts, no resource limits —
-# see examples/ and README.md#overrides.
+# debug`) can poke at it. It is the last overlay: the sandbox itself comes from
+# the fragments scripts/compose.sh assembles.
 #
-#   docker compose -f compose/harness.yml up -d --build
-#   docker compose -f compose/harness.yml exec --user 1000 agent-base bash
+#   scripts/compose.sh --file compose/harness.yml -- up -d --build
+#   make up            # same, with --with "$(WITH)" (default: daemon)
+#
+# Not meant to be deployed, and it sets no values you would deploy with.
 # =============================================================================
 
-# Pin the compose project name: it decides the volume/network prefixes, and
-# without it they follow this file's directory ("compose_...").
 name: agent-base
 
 services:
   agent-base:
-    extends:
-      file: base.yml
-      service: agent-base
     image: ${AGENT_IMAGE:-agent-base:local}
     pull_policy: build
     build:
-      context: ../image
+      # Relative to the project directory (see scripts/compose.sh), not to
+      # this file's location.
+      context: image
       dockerfile: Dockerfile
       target: agent-base
       args:
@@ -41,6 +39,6 @@ services:
       - agent-projects:/home/${AGENT_USER:-agent}/Projects
 
 volumes:
-  # Required by compose/base.yml; see its header.
+  # Required by compose/base.yml.
   agent-docker:
   agent-projects:

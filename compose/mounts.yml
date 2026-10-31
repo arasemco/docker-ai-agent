@@ -1,0 +1,22 @@
+# =============================================================================
+# compose/mounts.yml — bind the agent's workspace to a host directory
+# =============================================================================
+#   AGENT_PROJECTS_HOST=~/work scripts/compose.sh --with daemon,mounts -- up -d
+#
+# Defaults to ${HOME}/Projects, which is where an agent normally works. Add
+# further binds (read-only trees, a shared templates dir) in your own
+# compose/local.yml — this fragment stays to the one path everybody has.
+#
+# Two host-path rules that bite:
+#   * The directory must exist and be writable by uid 1000. A missing bind
+#     source is auto-created root-owned, and the image's cont-init then refuses
+#     to start with an ownership error.
+#   * On a host whose own Docker daemon is rootless, bind mounts appear
+#     root-owned INSIDE the container, so uid 1000 cannot write them; use a
+#     named volume there instead.
+# =============================================================================
+
+services:
+  agent-base:
+    volumes:
+      - ${AGENT_PROJECTS_HOST:-${HOME}/Projects}:/home/agent/Projects

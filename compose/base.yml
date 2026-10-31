@@ -1,42 +1,24 @@
 # =============================================================================
-# compose/base.yml — the reusable service definition for agent images
+# compose/base.yml — the minimum every agent container needs
 # =============================================================================
-# Generic on purpose. It carries only what the image needs to work at all:
-# the s6-managed sandbox, its devices and seccomp exceptions, and the daemon's
-# data volume. Everything that reflects a particular host or a particular
-# operator — proxies, host mounts, CPU/memory limits, the registry, the CLI —
-# belongs to the consumer. See examples/compose/ for copy-paste fragments.
+# This is a FRAGMENT, not a stack. It defines the service skeleton that other
+# fragments overlay, all keyed to the same canonical service name so compose's
+# `-f` merging lines them up:
 #
-# Use it from a child stack directory:
+#   base.yml     service skeleton, AGENT_* toggles, daemon data volume
+#   daemon.yml   devices + seccomp exceptions the rootless daemon needs
+#   proxy.yml    outbound proxy pass-through (empty unless you set it)
+#   limits.yml   CPU/memory limits (values from AGENT_CPUS / AGENT_MEMORY)
+#   mounts.yml   bind the agent's workspace to a host directory
 #
-#   # my-agent/docker-compose.yml
-#   services:
-#     myagent:
-#       extends:
-#         file: ../agent-base/compose/base.yml
-#         service: agent-base
-#       image: myagent:local
-#       build:
-#         context: .
-#         dockerfile: Dockerfile
-#         args:
-#           AGENT_BASE: myregistry.example/agent-base:1.1.0
-#       command: ["web"]                 # args for AGENT_CMD
-#       volumes:
-#         - myagent-home:/home/agent/.myagent
-#   volumes:
-#     agent-docker:                      # REQUIRED: see below
-#     myagent-home:
+# scripts/compose.sh assembles the ones you ask for and runs compose:
 #
-# Two interpolation rules:
+#   scripts/compose.sh --with daemon,proxy -- up -d --build
 #
-#   * AGENT_USER selects the home path in every mount target here, so a child
-#     that renames the account in its image gets matching mount points without
-#     editing this file.
-#   * AGENT_DOCKER_VOLUME names the daemon's data volume. Named volumes must be
-#     declared in the consuming project's top-level `volumes:` block — `extends`
-#     does not carry top-level declarations across files. Point it at an
-#     absolute host path to bind instead.
+# A child stack (a repo with its own Dockerfile) reuses the same fragments:
+# scripts/compose.sh renames the canonical service key to the child's service
+# name, because `-f` merging only works between files that name the same
+# service. See ../examples/child-image.
 # =============================================================================
 
 services:
@@ -50,43 +32,18 @@ services:
     hostname: ${AGENT_HOSTNAME:-agent}
 
     environment:
-      # The agent's working directory. Children mount their own host paths (or
-      # volumes) over it; without one it is just the directory baked into the
-      # image, which is fine for a throwaway container.
+      # The agent's working directory. Mount something over it (mounts.yml) to
+      # work on real files; otherwise it is just a directory in the container.
       - AGENT_WORKSPACE=/home/${AGENT_USER:-agent}/Projects
       # Service toggles and restart budgets (see the image's README).
       - AGENT_DOCKERD=${AGENT_DOCKERD:-1}
       - AGENT_DOCKERD_TIMEOUT=${AGENT_DOCKERD_TIMEOUT:-30}
       - AGENT_DOCKERD_MAX_RESTARTS=${AGENT_DOCKERD_MAX_RESTARTS:-3}
       - AGENT_RESTART_MAX=${AGENT_RESTART_MAX:-3}
-      # Proxy pass-through: empty by default and harmless when empty, so a
-      # consumer can set these in its own .env (or shell) without touching this
-      # file. Values themselves are deployment-specific — see
-      # examples/env/proxy-squid.env for an example, not a default.
-      - HTTP_PROXY=${HTTP_PROXY:-}
-      - HTTPS_PROXY=${HTTPS_PROXY:-}
-      - ALL_PROXY=${ALL_PROXY:-}
-      - NO_PROXY=${NO_PROXY:-}
-      - http_proxy=${http_proxy:-}
-      - https_proxy=${https_proxy:-}
-      - all_proxy=${all_proxy:-}
-      - no_proxy=${no_proxy:-}
 
     volumes:
       # Images, containers and build cache of the in-container rootless daemon.
       # A named volume, not a bind mount: it holds files owned by subordinate
       # uids and losing it would discard the agent's image cache on every
-      # recreate.
+      # recreate. Declare the volume in the composing file.
       - ${AGENT_DOCKER_VOLUME:-agent-docker}:/home/${AGENT_USER:-agent}/.local/share/docker
-
-    # What the rootless daemon needs from the host: rootlesskit creates user
-    # and mount namespaces (blocked by the default seccomp profile and masked
-    # /proc paths), fuse-overlayfs needs /dev/fuse, slirp4netns needs
-    # /dev/net/tun. Without them the agent still runs — only `docker` inside it
-    # is unavailable, which the daemon service logs.
-    security_opt:
-      - seccomp:unconfined
-      - systempaths=unconfined
-    devices:
-      - /dev/fuse
-      - /dev/net/tun
