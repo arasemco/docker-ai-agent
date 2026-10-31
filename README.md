@@ -6,9 +6,13 @@ carrying three drifting copies of the same sandbox.
 
 What it provides:
 
-- **Debian 12 + Node 22**, pinned by digest. Not Alpine: agent CLIs ship
-  glibc-only native builds (dsh refuses to boot on musl), so glibc is the only
-  base all three run on — and Node is what most of them are written in.
+- **Debian 12**, pinned by digest, with **Node/npm from Debian's own packages**
+  (18.20 / npm 9.2 on bookworm). Not Alpine: agent CLIs ship glibc-only native
+  builds (dsh refuses to boot on musl), so glibc is the only base all three
+  run on. The Node version is the one caveat: dsh's `engines` require
+  `^22.19.0 || >=24`, so a dsh child must bring its own Node (NodeSource apt
+  repo, a pinned tarball, or the upstream node image) — this base only installs
+  from package managers, and Debian ships 18.20.
 - **One unprivileged user** (`agent`, uid/gid 1000 by default), owning its home
   and working directory, so bind mounts line up with the host user.
 - **A rootless Docker daemon** started by the entrypoint — `docker` works

@@ -5,17 +5,21 @@
 # Everything the claude-code, opencode and deepseek-harness images used to
 # repeat is defined once here:
 #
-#   * Debian 12 (glibc) + Node 22, pinned by digest. Not Alpine: several
-#     agent CLIs ship glibc-only prebuilt native modules (dsh dies at boot on
-#     musl with "--expose-internals is required for the HMR service"), so
-#     glibc is the only base all three run on.
+#   * Debian 12 (glibc), pinned by digest, with Node/npm from Debian's own
+#     packages. Not Alpine: several agent CLIs ship glibc-only prebuilt native
+#     modules (dsh dies at boot on musl with "--expose-internals is required
+#     for the HMR service"), so glibc is the only base all three run on.
+#     NOTE: bookworm's nodejs is 18.20 — fine for npm tooling, too old for dsh,
+#     whose package.json engines require ^22.19.0 || >=24. A child that needs a
+#     newer Node must supply it itself (NodeSource apt repo, pinned tarball, or
+#     the upstream node image); this base installs only from package managers.
 #   * One unprivileged user (AGENT_USER, uid/gid 1000 by default) that owns
 #     everything under its home, so bind mounts line up with the host user
 #     on most systems.
 #   * A rootless Docker daemon (docker-ce + rootless extras) started by
 #     agent-entrypoint, so the agent can run `docker` without --privileged.
 #   * Python 3 + uv, Node/npm, yq, git/gh, a native build toolchain and the
-#     GNU userland tools agents expect to exist.
+#     GNU userland tools agents expect to exist — all from a package manager.
 #   * The generic agent-entrypoint (hook system + dockerd bootstrap) and
 #     agent-healthcheck.
 #
@@ -29,15 +33,14 @@
 #     COPY hooks/ /etc/agent-entrypoint.d/
 # =============================================================================
 
-ARG NODE_REF=docker.io/library/node:22-bookworm-slim@sha256:4b150b48b4116e2a22f2c39cc27025fbf4f153e2078fd3b14d159fdb5c7279da
+ARG DEBIAN_REF=docker.io/library/debian:bookworm-slim@sha256:99c0b25c46d0214d5a2091092e7908907dcaecd6a962cde0ac700acee222b6f3
 
-FROM ${NODE_REF} AS agent-base
+FROM ${DEBIAN_REF} AS agent-base
 
-# AGENT_USER names the unprivileged account that runs the agent. The node
-# base image already uses uid/gid 1000 ("node"), so the default relabels that
-# account instead of colliding with it; a child image can rename it to its own
-# tool name (claude/opencode/dsh) with a build arg, and every path in
-# compose.base.yml follows through ${AGENT_USER}.
+# AGENT_USER names the unprivileged account that runs the agent. Bare Debian
+# has nothing at uid/gid 1000, so the account is created fresh here; the
+# relabel branch exists for bases that already ship one (the node image used
+# to, as "node"). Every path in compose.base.yml follows ${AGENT_USER}.
 ARG AGENT_USER=agent
 ARG AGENT_UID=1000
 ARG AGENT_GID=1000
@@ -90,8 +93,9 @@ RUN mkdir -p "/home/${AGENT_USER}/Projects" \
 RUN grep -q "^${AGENT_USER}:" /etc/subuid 2>/dev/null || echo "${AGENT_USER}:100000:65536" >> /etc/subuid; \
     grep -q "^${AGENT_USER}:" /etc/subgid 2>/dev/null || echo "${AGENT_USER}:100000:65536" >> /etc/subgid
 
-# Base tooling for the shell commands an agent runs. nodejs/npm come with the
-# base image; curl + ca-certificates also serve HTTPS model calls.
+# Base tooling for the shell commands an agent runs. nodejs/npm come from
+# Debian (18.20 / npm 9.2 on bookworm — see the header note about dsh needing
+# >= 22.19); curl + ca-certificates also serve HTTPS model calls.
 #
 # yq is the Debian package: kislyuk's 3.x, a jq wrapper (jq syntax, `yq -y` for
 # YAML output). mikefarah's Go yq v4 is not in Debian and would need a GitHub
@@ -120,6 +124,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
         python3-pip \
         python3-venv \
         pipx \
+        nodejs \
+        npm \
         unzip \
     && rm -rf /var/lib/apt/lists/*
 

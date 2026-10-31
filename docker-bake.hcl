@@ -33,16 +33,18 @@ variable "AGENT_GID"  { default = "1000" }
 variable "DOCKER_VERSION" { default = "29.8.1" }
 variable "UV_VERSION"     { default = "0.13.6" }
 
-// Frozen build inputs, pinned by digest where possible: a floating tag can be
-// repointed upstream at any time, digests cannot. NODE_BASE must stay a glibc
-// base (see the Dockerfile header). To bump:
-//   docker buildx imagetools inspect node:22-bookworm-slim
-// and update both this digest and the Dockerfile's NODE_REF default.
-variable "NODE_BASE" {
+// Frozen build inputs, pinned by digest: a floating tag can be repointed
+// upstream at any time, digests cannot. Must stay a glibc base (see the
+// Dockerfile header). To bump:
+//   docker buildx imagetools inspect debian:bookworm-slim
+// and update both this digest and the Dockerfile's DEBIAN_REF default.
+// Node/npm are NOT part of this base image: they come from Debian's packages
+// (bookworm's 18.20 is too old for dsh — see the Dockerfile header note).
+variable "DEBIAN_BASE" {
   default = {
-    name   = "docker.io/library/node"
-    tag    = "22-bookworm-slim"
-    digest = "sha256:4b150b48b4116e2a22f2c39cc27025fbf4f153e2078fd3b14d159fdb5c7279da"
+    name   = "docker.io/library/debian"
+    tag    = "bookworm-slim"
+    digest = "sha256:99c0b25c46d0214d5a2091092e7908907dcaecd6a962cde0ac700acee222b6f3"
   }
 }
 
@@ -99,7 +101,7 @@ target "agent-base" {
   pull       = true
 
   args = {
-    NODE_REF       = pinned_ref(NODE_BASE)
+    DEBIAN_REF     = pinned_ref(DEBIAN_BASE)
     AGENT_USER     = AGENT_USER
     AGENT_UID      = AGENT_UID
     AGENT_GID      = AGENT_GID
@@ -114,9 +116,9 @@ target "agent-base" {
 
   labels = oci_labels(
     "agent-base",
-    "Shared sandbox base for AI coding-agent CLIs: Debian + Node 22, unprivileged agent user, rootless Docker, Python/uv, dev toolchain",
+    "Shared sandbox base for AI coding-agent CLIs: Debian 12 with package-managed Node/npm, unprivileged agent user, rootless Docker, Python/uv, dev toolchain",
     BASE_VERSION,
-    NODE_BASE,
+    DEBIAN_BASE,
   )
 
   platforms = split(",", PLATFORMS)
