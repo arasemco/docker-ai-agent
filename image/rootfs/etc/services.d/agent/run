@@ -28,7 +28,9 @@ if [ "${AGENT_DOCKERD}" != "0" ]; then
         sleep 0.1
     done
     if [ -e /run/service/dockerd ]; then
-        if ! /command/s6-svwait -U -t "${AGENT_DOCKERD_TIMEOUT}" /run/service/dockerd 2>/dev/null; then
+        # s6-svwait -t is in milliseconds, while AGENT_DOCKERD_TIMEOUT is in
+        # seconds.
+        if ! /command/s6-svwait -U -t "$(( AGENT_DOCKERD_TIMEOUT * 1000 ))" /run/service/dockerd 2>/dev/null; then
             log "WARNING: dockerd did not report ready within ${AGENT_DOCKERD_TIMEOUT}s; starting the agent anyway (docker may be unavailable)"
         fi
     else
