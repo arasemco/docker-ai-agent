@@ -12,7 +12,7 @@ WITH      ?= daemon
 
 # Same fragments the root docker-compose.yml includes, but selectable: compose
 # resolves paths against the stack file's directory, hence --file compose/image.yml.
-COMPOSE := scripts/compose.sh --with $(WITH) --file compose/image.yml --
+COMPOSE := scripts/compose.sh --with $(WITH) --file compose/image.yml --file compose/harness.yml --
 
 .PHONY: default build test smoke up down ps logs exec debug config
 

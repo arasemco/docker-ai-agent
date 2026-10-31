@@ -16,7 +16,7 @@ cd "$(dirname "$0")/.."
 # Same assembly the makefile uses: fragments (WITH, default daemon) plus the
 # image + fragments; scripts/compose.sh also merges compose/local.yml when present.
 compose() {
-    scripts/compose.sh --with "${WITH:-daemon}" --file compose/image.yml -- "$@"
+    scripts/compose.sh --with "${WITH:-daemon}" --file compose/image.yml --file compose/harness.yml -- "$@"
 }
 
 cleanup() {

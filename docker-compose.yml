@@ -7,7 +7,7 @@
 #
 #   compose/base.yml    service skeleton + AGENT_* toggles
 #   compose/daemon.yml  devices/seccomp + the daemon's data volume
-#   compose/image.yml   build image/ + default command + workspace volume
+#   compose/image.yml   build image/ (the default command is set below)
 #
 # Want proxy, limits or a host-mounted workspace? Add the matching fragment
 # instead of editing this file:
@@ -25,6 +25,14 @@ include:
   - compose/base.yml
   - compose/daemon.yml
   - compose/image.yml
+
+services:
+  agent-base:
+    # This image ships no agent CLI, so its default command is a shell — which
+    # exits at once without a TTY. The default stack is therefore a sandbox
+    # that stays up for `docker compose exec`; a child image replaces this with
+    # its own command.
+    command: ["-lc", "sleep infinity"]
 
 # No volumes block here: each fragment declares the volume it mounts
 # (daemon.yml -> agent-docker, image.yml -> agent-workspace), so include and -f

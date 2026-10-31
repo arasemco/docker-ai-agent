@@ -81,7 +81,8 @@ exactly one thing:
 |---|---|---|
 | `base.yml` | service skeleton + `AGENT_*` toggles | always |
 | `daemon.yml` | `/dev/fuse`, `/dev/net/tun`, seccomp exceptions, `agent-docker` volume | `--with daemon` (default) |
-| `image.yml` | build of `image/`, default command, `agent-projects` volume | the root file and `make` |
+| `image.yml` | build of `image/` (no command, no mounts — the stack decides) | the root file and `make` |
+| `harness.yml` | keeps the sandbox container alive for `make exec`/smoke | `make`, `scripts/smoke.sh` |
 | `proxy.yml` | outbound proxy: `HTTP_PROXY` → `http_proxy` → `PROXY` → empty (no values baked in) | `--with proxy` |
 | `limits.yml` | CPU/memory from `AGENT_CPUS` / `AGENT_MEMORY` | `--with limits` |
 | `mounts.yml` | bind the workspace to `AGENT_WORKSPACE_HOST` (default `./workspace`) | `--with mounts` |
@@ -239,6 +240,7 @@ the container, so uid 1000 cannot write them.
 | `image/rootfs/` | files copied into the image: entrypoint, agent-run, healthcheck, selftest, s6 services, cont-init, hooks dir |
 | `docker-compose.yml` | the minimal working stack (`include:` of base + daemon + image) |
 | `compose/{base,daemon,image,proxy,limits,mounts}.yml` | one fragment per concern (see "Compose fragments") |
+| `compose/harness.yml` | test-only overlay: sleep-forever command instead of a shell |
 | `scripts/compose.sh` | assembles the fragments, renames the service for a child, merges `compose/local.yml` |
 | `examples/` | env examples and a child-image example; not used by the build |
 | `docker-bake.hcl` | bake targets, pinned versions, neutral defaults |

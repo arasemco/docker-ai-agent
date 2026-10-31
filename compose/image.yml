@@ -32,11 +32,7 @@ services:
         AGENT_GID: ${AGENT_GID:-1000}
         DOCKER_VERSION: ${DOCKER_VERSION:-29.8.1}
         UV_VERSION: ${UV_VERSION:-0.13.6}
-    # The entrypoint hands CMD to the agent service, which runs
-    # `bash -lc "sleep infinity"` — enough to keep the container up for exec.
-    command: ["-lc", "sleep infinity"]
-    # No workspace mount here: agent.yml/mounts.yml own that decision. Without
-    # one the agent works in the directory baked into the image
-    # (/home/agent/workspace, owned by the agent user), which is fine for a
-    # throwaway container and makes this fragment usable unchanged on hosts
-    # where bind mounts do not work (rootless outer Docker).
+    # No command and no mounts here: what the container runs and where its
+    # workspace lives are decisions for the composing stack (the root
+    # docker-compose.yml, compose/harness.yml, or the child image). With no
+    # command the image's own default applies — a shell as AGENT_USER.
