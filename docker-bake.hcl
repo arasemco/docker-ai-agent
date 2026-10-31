@@ -12,6 +12,7 @@
 
 variable "REGISTRY"   { default = "git.omesa.net/asemo" }
 variable "SOURCE_URL" { default = "https://git.omesa.net/asemo/opencode" }
+variable "TAG"        { default = "latest" }
 
 // The shared base image, by tag (agent-base also publishes :latest; pin the
 // version so a rebuild cannot silently pick up a new base).
