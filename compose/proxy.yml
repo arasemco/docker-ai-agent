@@ -6,27 +6,37 @@
 # Deliberately NOT part of base.yml: a proxy URL is deployment-specific, and
 # empty pass-throughs in the base would set HTTP_PROXY="" in every container.
 #
-# The values come from the environment (.env or the shell) — this file carries
-# none. Both cases are set because tools disagree about which one they honour;
-# a variable you leave unset expands to an empty string, which tools treat as
-# "no proxy".
+# Resolution order for every proxy variable, first match wins:
 #
-# NO_PROXY must list whatever the container reaches directly: loopback, and any
-# local model endpoint or registry. The inner Docker daemon inherits these too,
-# so its pulls go through the same proxy.
+#   HTTP_PROXY=...   the variable itself (upper- or lowercase, as that tool
+#                    expects it)
+#   http_proxy=...   the other case of the same knob: tools disagree about
+#                    which they read, so setting either one sets both
+#   PROXY=...        one generic value, applied to every scheme, so a network
+#                    with a single proxy needs one variable, not eight
+#   (empty)          no proxy for that variable
+#
+# NO_PROXY gets a loopback default when neither case is set (localhost,
+# 127.0.0.1, ::1): with a proxy set and NO_PROXY empty, requests to the
+# container's own loopback — a local model endpoint, the inner daemon's own
+# registry — would be sent to the proxy and fail. Set NO_PROXY to override.
+#
+# Values come from the environment (.env or the shell); this file carries none.
 #
 #   cp .env.example .env
-#   cat examples/env/proxy-squid.env >> .env      # example values
+#   echo 'PROXY=http://proxy.example:3128' >> .env      # simplest form
+#   cat examples/env/proxy-squid.env >> .env            # per-variable form
 # =============================================================================
 
 services:
   agent-base:
     environment:
-      - HTTP_PROXY=${HTTP_PROXY:-}
-      - HTTPS_PROXY=${HTTPS_PROXY:-}
-      - ALL_PROXY=${ALL_PROXY:-}
-      - NO_PROXY=${NO_PROXY:-}
-      - http_proxy=${http_proxy:-}
-      - https_proxy=${https_proxy:-}
-      - all_proxy=${all_proxy:-}
-      - no_proxy=${no_proxy:-}
+      - HTTP_PROXY=${HTTP_PROXY:-${http_proxy:-${PROXY:-}}}
+      - HTTPS_PROXY=${HTTPS_PROXY:-${https_proxy:-${PROXY:-}}}
+      - ALL_PROXY=${ALL_PROXY:-${all_proxy:-${PROXY:-}}}
+      - http_proxy=${http_proxy:-${HTTP_PROXY:-${PROXY:-}}}
+      - https_proxy=${https_proxy:-${HTTPS_PROXY:-${PROXY:-}}}
+      - all_proxy=${all_proxy:-${ALL_PROXY:-${PROXY:-}}}
+      # Not a proxy address: no PROXY fallback, only the loopback default.
+      - NO_PROXY=${NO_PROXY:-${no_proxy:-localhost,127.0.0.1,::1}}
+      - no_proxy=${no_proxy:-${NO_PROXY:-localhost,127.0.0.1,::1}}

@@ -82,7 +82,7 @@ exactly one thing:
 | `base.yml` | service skeleton + `AGENT_*` toggles | always |
 | `daemon.yml` | `/dev/fuse`, `/dev/net/tun`, seccomp exceptions, `agent-docker` volume | `--with daemon` (default) |
 | `image.yml` | build of `image/`, default command, `agent-projects` volume | the root file and `make` |
-| `proxy.yml` | outbound proxy pass-through (no values baked in) | `--with proxy` |
+| `proxy.yml` | outbound proxy: `HTTP_PROXY` → `http_proxy` → `PROXY` → empty (no values baked in) | `--with proxy` |
 | `limits.yml` | CPU/memory from `AGENT_CPUS` / `AGENT_MEMORY` | `--with limits` |
 | `mounts.yml` | bind the workspace to `AGENT_WORKSPACE_HOST` (default `./workspace`) | `--with mounts` |
 
