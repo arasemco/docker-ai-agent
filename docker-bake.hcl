@@ -20,7 +20,7 @@ variable "SOURCE_URL" { default = "https://git.omesa.net/asemo/agent-base" }
 
 // agent-base's own version, independent of the CLIs installed on top of it.
 // Child images pin the base by this tag (or by digest, which is stronger).
-variable "BASE_VERSION" { default = "1.0.0" }
+variable "BASE_VERSION" { default = "1.1.0" }
 
 // The unprivileged user the image runs. Children override AGENT_USER to their
 // own tool name (claude/opencode/dsh) and rebuild with the same uid/gid.

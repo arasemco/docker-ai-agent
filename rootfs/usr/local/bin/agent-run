@@ -1,0 +1,40 @@
+#!/bin/bash
+# =============================================================================
+# agent-run — runs the agent CLI. Executed by /etc/services.d/agent/run as
+# AGENT_USER (never root), after that script has waited for the Docker daemon.
+#
+#   AGENT_CMD        CLI to run (image ENV; default bash)
+#   AGENT_WORKSPACE  working directory (image ENV: $HOME/Projects)
+#   /run/agent/args  NUL-separated arguments from the container's CMD, written
+#                    by agent-entrypoint (absent/empty = no arguments)
+#
+# Hooks in /etc/agent-entrypoint.d/*.sh are sourced here, before the CLI
+# starts, so they can rewrite "$@" (`set -- web --no-open "$@"`). Keeping them
+# in this script rather than in cont-init.d is deliberate: cont-init has no
+# access to the container's CMD args.
+# =============================================================================
+set -e
+
+: "${AGENT_WORKSPACE:=$HOME/Projects}"
+
+cd "$AGENT_WORKSPACE"
+
+args=()
+if [ -s /run/agent/args ]; then
+    # NUL-separated: survives spaces and newlines in individual arguments.
+    mapfile -d '' -t args < /run/agent/args
+fi
+set -- "${args[@]}"
+
+shopt -s nullglob
+for hook in /etc/agent-entrypoint.d/*.sh; do
+    printf '[agent] %s sourcing hook %s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$hook" >&2
+    # shellcheck disable=SC1090 # path is discovered at runtime by design
+    . "$hook"
+done
+shopt -u nullglob
+
+printf '[agent] %s handing off to: %s %s\n' \
+    "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "${AGENT_CMD:-bash}" "$*" >&2
+
+exec "${AGENT_CMD:-bash}" "$@"

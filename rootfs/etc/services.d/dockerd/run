@@ -1,0 +1,134 @@
+#!/command/with-contenv bash
+# =============================================================================
+# services.d/dockerd/run — the rootless Docker daemon, as AGENT_USER.
+#
+# Supervised by s6-overlay: if the daemon dies it is restarted (unless it has
+# already failed AGENT_DOCKERD_MAX_RESTARTS times in a row, see finish), and it
+# announces readiness through s6's notification fd (notification-fd = 3) the
+# moment `docker info` answers, so the agent service can wait for a working
+# daemon instead of racing it.
+#
+# The daemon itself is a child of this script rather than the exec target,
+# because readiness has to be detected and reported after it starts; the script
+# forwards TERM/INT to it and exits with its status, which is what s6
+# supervises.
+#
+# Environment:
+#   AGENT_DOCKERD              1 to start the daemon, 0 to leave it off
+#   AGENT_DOCKERD_TIMEOUT      seconds to wait for the socket before giving up
+#   AGENT_DOCKERD_MAX_RESTARTS consecutive crash restarts before idling
+# =============================================================================
+set -euo pipefail
+
+log() {
+    printf '[dockerd] %s %s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$*" >&2
+}
+
+AGENT_USER="${AGENT_USER:-agent}"
+: "${AGENT_DOCKERD:=1}"
+: "${AGENT_DOCKERD_TIMEOUT:=30}"
+: "${AGENT_DOCKERD_MAX_RESTARTS:=3}"
+export XDG_RUNTIME_DIR="${XDG_RUNTIME_DIR:-$HOME/.docker/run}"
+export DOCKER_HOST="${DOCKER_HOST:-unix://${XDG_RUNTIME_DIR}/docker.sock}"
+
+DOCKER_SOCK="${XDG_RUNTIME_DIR}/docker.sock"
+DOCKER_PID="${XDG_RUNTIME_DIR}/docker.pid"
+DOCKER_LOG="$HOME/.docker/dockerd.log"
+
+# Tell s6 the service is usable. fd 3 is the notification pipe s6 created from
+# notification-fd; a missing fd is not fatal (the script also runs by hand).
+notify_ready() {
+    printf 'ready\n' >&3 2>/dev/null || true
+}
+
+# A deliberately disabled or permanently-failing daemon must not restart-loop:
+# s6 relaunches any service that exits, so idle in the foreground instead and
+# let the agent run without docker (it degrades, entries are logged).
+idle() {
+    printf '%s\n' "$1" > /run/agent/dockerd.idle 2>/dev/null || true
+    notify_ready
+    exec sleep infinity
+}
+
+if [ "${AGENT_DOCKERD}" = "0" ]; then
+    idle "AGENT_DOCKERD=0"
+fi
+
+fails="$(cat /run/agent/dockerd.fails 2>/dev/null || echo 0)"
+if [ "${fails}" -ge "${AGENT_DOCKERD_MAX_RESTARTS}" ]; then
+    idle "dockerd failed ${fails} times in a row; leaving it down (delete /run/agent/dockerd.fails and restart the container to retry)"
+fi
+rm -f /run/agent/dockerd.idle
+
+mkdir -p "$HOME/.local/share/docker" "$HOME/.docker" "$XDG_RUNTIME_DIR"
+chmod 0700 "$XDG_RUNTIME_DIR"
+
+if [ -S "$DOCKER_SOCK" ] && docker info >/dev/null 2>&1; then
+    log "a dockerd already answers at ${DOCKER_SOCK}; supervising nothing"
+    rm -f /run/agent/dockerd.idle
+    notify_ready
+    exec sleep infinity
+fi
+
+if [ -S "$DOCKER_SOCK" ]; then
+    log "stale socket at ${DOCKER_SOCK} with no responsive daemon; removing it"
+    rm -f "$DOCKER_SOCK"
+fi
+if [ -e "$DOCKER_PID" ] || [ -d "${XDG_RUNTIME_DIR}/docker" ]; then
+    log "clearing runtime state left over from a previous container boot"
+    rm -rf "${XDG_RUNTIME_DIR:?}/docker" "$DOCKER_PID" 2>/dev/null || true
+fi
+
+date +%s > /run/agent/dockerd.started
+
+# fuse-overlayfs explicitly: native overlay2 cannot be mounted on top of the
+# container's own overlay root ("invalid argument").
+log "starting dockerd-rootless.sh with --storage-driver=fuse-overlayfs (log: ${DOCKER_LOG})"
+/command/s6-setuidgid "${AGENT_USER}" \
+    dockerd-rootless.sh dockerd --storage-driver=fuse-overlayfs >>"${DOCKER_LOG}" 2>&1 &
+dockerd_pid=$!
+log "dockerd pid ${dockerd_pid}"
+
+# Forward the container's stop signal to the daemon, then let the foreground
+# wait below return and this script exit with the daemon's status.
+trap 'log "forwarding stop signal to dockerd (pid '"${dockerd_pid}"')"; kill -TERM "${dockerd_pid}" 2>/dev/null || true' TERM INT
+
+ready=0
+died=0
+for i in $(seq 1 "${AGENT_DOCKERD_TIMEOUT}"); do
+    if [ -S "$DOCKER_SOCK" ] && docker info >/dev/null 2>&1; then
+        log "dockerd ready after ${i}s"
+        ready=1
+        break
+    fi
+    if ! kill -0 "${dockerd_pid}" 2>/dev/null; then
+        died=1
+        log "WARNING: dockerd exited during startup; last 20 lines of ${DOCKER_LOG}:"
+        tail -n 20 "${DOCKER_LOG}" >&2 2>/dev/null || true
+        break
+    fi
+    sleep 1
+done
+
+if [ "${ready}" -eq 1 ]; then
+    rm -f /run/agent/dockerd.fails
+    notify_ready
+else
+    if [ "${died}" -eq 0 ]; then
+        log "WARNING: dockerd not ready after ${AGENT_DOCKERD_TIMEOUT}s; starting the agent anyway"
+    else
+        log "WARNING: dockerd is not running; starting the agent anyway (s6 will restart the daemon)"
+    fi
+    # Announce readiness regardless: the agent service must not block forever
+    # on a daemon this host cannot provide. The daemon keeps starting in the
+    # background and s6 restarts it if it gives up.
+    notify_ready
+fi
+
+# s6 supervises this script, so stay alive exactly as long as the daemon does.
+set +e
+wait "${dockerd_pid}"
+rc=$?
+set -e
+log "dockerd exited with status ${rc}"
+exit "${rc}"

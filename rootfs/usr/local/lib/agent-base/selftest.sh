@@ -11,6 +11,17 @@
 # =============================================================================
 set -uo pipefail
 
+# The container's PID 1 user is now root (s6-overlay supervises root, and each
+# service drops to AGENT_USER). Validation must run as the agent user, so
+# re-exec through s6-setuidgid when invoked as root.
+if [ "$(id -u)" = 0 ]; then
+    if [ -x /command/s6-setuidgid ]; then
+        exec /command/s6-setuidgid "${AGENT_USER:-agent}" "$0" "$@"
+    fi
+    echo "selftest: running as root and /command/s6-setuidgid is missing; refusing to validate a root environment" >&2
+    exit 1
+fi
+
 want_docker=1
 case "${1:-}" in
     --no-docker) want_docker=0 ;;

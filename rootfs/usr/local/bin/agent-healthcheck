@@ -45,7 +45,9 @@ check_agent() {
     name="$(basename "$cmd")"
     # The default command is an interactive shell; nothing to watch for.
     [ "$name" = bash ] && return 0
-    pgrep -u "$(id -u)" -x "$name" >/dev/null 2>&1 || fail "'$name' is not running"
+    # The agent service runs as AGENT_USER; this healthcheck runs as root (the
+    # container's PID 1 user), so match the account, not the current uid.
+    pgrep -u "${AGENT_UID:-1000}" -x "$name" >/dev/null 2>&1 || fail "'$name' is not running"
 }
 
 check_url() {

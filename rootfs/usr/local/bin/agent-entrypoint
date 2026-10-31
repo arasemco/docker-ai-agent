@@ -1,142 +1,27 @@
 #!/bin/bash
 # =============================================================================
-# agent-entrypoint — generic entrypoint for every agent image built FROM
-# agent-base. Runs as AGENT_USER (see the Dockerfile's USER), never root.
+# agent-entrypoint — the image's ENTRYPOINT. Runs only briefly.
 #
-# What it does, in order:
-#   1. Warns (and stops) if AGENT_HOME / AGENT_WORKSPACE are not writable by
-#      the agent user, instead of letting the CLI fail later with EACCES.
-#   2. Starts a rootless Docker daemon for the agent's `docker` commands,
-#      unless AGENT_DOCKERD=0.
-#   3. Sources every /etc/agent-entrypoint.d/*.sh hook. Hooks run after the
-#      daemon is up and before the CLI starts, and may rewrite the argument
-#      list (`set -- ...`) — that is how a child image translates its own
-#      variables into CLI flags without forking this script.
-#   4. cd's to AGENT_WORKSPACE and exec's AGENT_CMD with the remaining args.
+# s6-overlay's /init is PID 1 and supervises the real services:
+#   /etc/services.d/dockerd  the rootless Docker daemon (as AGENT_USER)
+#   /etc/services.d/agent    the agent CLI itself (as AGENT_USER)
 #
-# Environment (all optional):
-#   AGENT_CMD              CLI to run (image ENV; default: bash)
-#   AGENT_WORKSPACE        working directory (image ENV: $HOME/Projects)
-#   AGENT_DOCKERD          1 to start the rootless daemon, 0 to skip (default 1)
-#   AGENT_DOCKERD_TIMEOUT  seconds to wait for the daemon socket (default 30)
-#
-# Rootless Docker: the daemon runs as AGENT_USER under rootlesskit, socket at
-# $XDG_RUNTIME_DIR/docker.sock (DOCKER_HOST points there), log at
-# ~/.docker/dockerd.log. It needs the container started with
-# `security_opt: [seccomp:unconfined, systempaths=unconfined]` and the devices
-# /dev/fuse and /dev/net/tun (compose.base.yml sets all of it). Without them
-# the daemon exits early: this script logs the log tail and still starts the
-# CLI, so the agent works — only `docker` is unavailable.
+# s6 does not forward the docker CMD args to services, so this wrapper stashes
+# them NUL-separated in /run/agent/args and hands PID 1 over to /init. The
+# agent service reads the file back (services.d/agent/run → agent-run), so
+# `docker compose run opencode web --port 4096` still reaches the CLI exactly
+# as before. An empty CMD leaves the file empty and the CLI runs with no args.
 # =============================================================================
 set -e
 
-log() {
-    printf '[entrypoint] %s %s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$*" >&2
-}
+mkdir -p /run/agent
+chmod 0755 /run/agent
 
-AGENT_WORKSPACE="${AGENT_WORKSPACE:-$HOME/Projects}"
-AGENT_DOCKERD="${AGENT_DOCKERD:-1}"
-AGENT_DOCKERD_TIMEOUT="${AGENT_DOCKERD_TIMEOUT:-30}"
-
-export XDG_RUNTIME_DIR="${XDG_RUNTIME_DIR:-$HOME/.docker/run}"
-export DOCKER_HOST="${DOCKER_HOST:-unix://${XDG_RUNTIME_DIR}/docker.sock}"
-mkdir -p "$XDG_RUNTIME_DIR"
-chmod 0700 "$XDG_RUNTIME_DIR"
-
-DOCKER_SOCK="${XDG_RUNTIME_DIR}/docker.sock"
-DOCKER_PID="${XDG_RUNTIME_DIR}/docker.pid"
-DOCKER_LOG="$HOME/.docker/dockerd.log"
-
-log "user=$(id -un) uid=$(id -u) HOME=$HOME workspace=$AGENT_WORKSPACE dockerd=$AGENT_DOCKERD"
-
-# --- 1. ownership ----------------------------------------------------------
-# The image creates $HOME and $AGENT_WORKSPACE owned by AGENT_USER, and Docker
-# copies that ownership into a named volume on first mount. A bind mount keeps
-# its host ownership, and a source directory Docker auto-creates comes out
-# root-owned; without root this script cannot fix either, so stop with the fix.
-for dir in "$HOME" "$AGENT_WORKSPACE"; do
-    mkdir -p "$dir" 2>/dev/null || true
-    if [ ! -w "$dir" ]; then
-        log "ERROR: $dir is not writable by $(id -un) (uid $(id -u), gid $(id -g))."
-        log "This container runs as non-root and can't fix ownership itself. For a bind mount,"
-        log "create the host directory before the first start, or: sudo chown -R $(id -u):$(id -g) <host path>"
-        exit 1
-    fi
-done
-
-# --- 2. rootless dockerd ---------------------------------------------------
-start_dockerd() {
-    if [ -S "$DOCKER_SOCK" ] && docker info >/dev/null 2>&1; then
-        log "dockerd already running and responsive at $DOCKER_SOCK, skipping start"
-        return 0
-    fi
-    if [ -S "$DOCKER_SOCK" ]; then
-        log "found stale socket at $DOCKER_SOCK with no responsive daemon (unclean previous shutdown); removing and starting fresh"
-        rm -f "$DOCKER_SOCK"
-    fi
-    # A container restart keeps $HOME, so socket/pid state from the previous
-    # boot can still be there with no daemon behind it.
-    if [ -e "$DOCKER_PID" ] || [ -d "${XDG_RUNTIME_DIR}/docker" ]; then
-        log "clearing docker runtime state left over from a previous container boot"
-        rm -rf "${XDG_RUNTIME_DIR:?}/docker" "$DOCKER_PID" 2>/dev/null || true
-    fi
-
-    local launcher
-    if command -v dockerd-rootless.sh >/dev/null 2>&1; then
-        launcher=dockerd-rootless.sh
-    elif command -v dockerd-entrypoint.sh >/dev/null 2>&1; then
-        # Alpine's docker:dind-rootless ships this wrapper instead.
-        launcher=dockerd-entrypoint.sh
-    else
-        log "WARNING: neither dockerd-rootless.sh nor dockerd-entrypoint.sh is installed; docker is unavailable"
-        return 0
-    fi
-
-    mkdir -p "$HOME/.local/share/docker" "$HOME/.docker"
-    # fuse-overlayfs explicitly: native overlay2 cannot be mounted on top of
-    # the container's own overlay root ("invalid argument").
-    log "starting $launcher with --storage-driver=fuse-overlayfs (log: $DOCKER_LOG)"
-    nohup "$launcher" dockerd --storage-driver=fuse-overlayfs >>"$DOCKER_LOG" 2>&1 &
-    local dockerd_bg_pid=$!
-    log "backgrounded $launcher with shell pid $dockerd_bg_pid"
-
-    local ready=0 i
-    for i in $(seq 1 "$AGENT_DOCKERD_TIMEOUT"); do
-        if [ -S "$DOCKER_SOCK" ] && docker info >/dev/null 2>&1; then
-            log "dockerd ready after ${i}s"
-            ready=1
-            break
-        fi
-        if ! kill -0 "$dockerd_bg_pid" 2>/dev/null; then
-            log "WARNING: $launcher (pid $dockerd_bg_pid) exited early; docker is unavailable. Last 40 lines of $DOCKER_LOG:"
-            tail -n 40 "$DOCKER_LOG" >&2 2>/dev/null || true
-            return 0
-        fi
-        sleep 1
-    done
-    if [ "$ready" -ne 1 ]; then
-        log "WARNING: dockerd not ready after ${AGENT_DOCKERD_TIMEOUT}s; it keeps starting in the background (see $DOCKER_LOG)"
-    fi
-}
-
-if [ "$AGENT_DOCKERD" != 0 ]; then
-    start_dockerd
+if [ "$#" -eq 0 ]; then
+    : > /run/agent/args
+else
+    printf '%s\0' "$@" > /run/agent/args
 fi
+chmod 0644 /run/agent/args
 
-cd "$AGENT_WORKSPACE"
-
-# --- 3. hooks --------------------------------------------------------------
-# Sourced, not executed, so a hook can adjust this shell's $@ (e.g.
-# `set -- web --no-open "$@"`) before the CLI starts.
-shopt -s nullglob
-for hook in /etc/agent-entrypoint.d/*.sh; do
-    log "sourcing hook $hook"
-    # shellcheck disable=SC1090 # path is discovered at runtime by design
-    . "$hook"
-done
-shopt -u nullglob
-
-# --- 4. hand off -----------------------------------------------------------
-AGENT_CMD="${AGENT_CMD:-bash}"
-log "handing off to: $AGENT_CMD $*"
-exec "$AGENT_CMD" "$@"
+exec /init

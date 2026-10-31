@@ -1,0 +1,73 @@
+#!/command/with-contenv bash
+# =============================================================================
+# services.d/agent/finish — runs after the agent CLI exits.
+#
+# Exit policy (this replaces the old "exec the CLI as PID 1" behavior):
+#
+#   * exit 0                    → the agent is done: stop the whole supervision
+#                                 tree, so the container exits, just like
+#                                 `docker run image --help` used to.
+#   * non-zero, ran >= 60s      → treat as a crash after a good run: s6 restarts
+#                                 it and the failure counter is reset.
+#   * non-zero, shorter         → count it; after AGENT_RESTART_MAX failed
+#                                 starts in a row, stop the tree instead of
+#                                 restart-looping a CLI that cannot start.
+#
+# The agent's own exit status is recorded in /run/agent/exit-code (and in the
+# container log) for tooling; the container's exit status is s6's, not the
+# CLI's.
+# =============================================================================
+set -uo pipefail
+
+log() {
+    printf '[agent] %s %s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$*" >&2
+}
+
+stop_tree() {
+    log "stopping the container (s6-svscanctl -t /run/service)"
+    /command/s6-svscanctl -t /run/service 2>/dev/null || true
+}
+
+rc="${1:-?}"
+printf '%s\n' "${rc}" > /run/agent/exit-code 2>/dev/null || true
+
+# 256+N means "killed by signal N": a container stop, not a CLI failure.
+case "${rc}" in
+    ''|*[!0-9]*) rc=0 ;;
+esac
+
+if [ "${rc}" -eq 0 ]; then
+    log "exited cleanly; stopping the container"
+    stop_tree
+    exit 0
+fi
+if [ "${rc}" -gt 255 ]; then
+    # s6 reports "killed by signal N" as 256+N. During a container stop that is
+    # just the shutdown, so there is nothing to restart and nothing to do: the
+    # tree is already coming down.
+    log "service was signalled (status ${rc}); not restarting"
+    stop_tree
+    exit 0
+fi
+
+now="$(date +%s)"
+started="$(cat /run/agent/agent.started 2>/dev/null || echo 0)"
+uptime=$(( now - started ))
+
+if [ "${uptime}" -ge 60 ]; then
+    rm -f /run/agent/agent.fails
+    log "exited with status ${rc} after ${uptime}s; restarting (failure counter reset)"
+    exit 0
+fi
+
+fails="$(cat /run/agent/agent.fails 2>/dev/null || echo 0)"
+fails=$(( fails + 1 ))
+printf '%s\n' "${fails}" > /run/agent/agent.fails 2>/dev/null || true
+
+max="${AGENT_RESTART_MAX:-3}"
+if [ "${fails}" -ge "${max}" ]; then
+    log "exited with status ${rc} after ${uptime}s; gave up after ${fails} failed starts (AGENT_RESTART_MAX=${max}); stopping the container"
+    stop_tree
+    exit 0
+fi
+log "exited with status ${rc} after ${uptime}s (failed start ${fails} of ${max}); restarting"

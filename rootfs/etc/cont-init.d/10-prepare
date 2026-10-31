@@ -1,0 +1,82 @@
+#!/command/with-contenv bash
+# =============================================================================
+# cont-init.d/10-prepare — runs as root, once, before any service starts
+# (s6-overlay stage 2). Prepares ownership and directories, then lets s6 start
+# the services.
+#
+# Unlike the old shell entrypoint, this runs as root, so it can FIX ownership
+# instead of only refusing to start: named volumes mounted over a path the
+# image owns inherit that ownership, but a host bind mount keeps its host
+# ownership, and a directory Docker auto-created comes out root-owned. The
+# workspace is chowned non-recursively only (it can be a whole ~/Projects
+# tree); anything deeper stays as the user left it.
+#
+# Exits non-zero — aborting startup with a clear message — only when the
+# workspace is still not writable by AGENT_USER after that.
+# =============================================================================
+set -euo pipefail
+
+log() {
+    printf '[cont-init] %s %s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$*" >&2
+}
+
+AGENT_USER="${AGENT_USER:-agent}"
+AGENT_WORKSPACE="${AGENT_WORKSPACE:-/home/${AGENT_USER}/Projects}"
+
+agent_uid="$(id -u "${AGENT_USER}")"
+agent_gid="$(id -g "${AGENT_USER}")"
+agent_home="$(getent passwd "${AGENT_USER}" | cut -d: -f6)"
+
+log "preparing ${agent_home} for ${AGENT_USER} (uid ${agent_uid}, gid ${agent_gid})"
+
+# State directories. mkdir as root then chown: a path created here is owned
+# correctly when a fresh named volume mounts over it on first start.
+for dir in \
+    "${agent_home}" \
+    "${agent_home}/.docker" \
+    "${agent_home}/.docker/run" \
+    "${agent_home}/.local/share/docker" \
+    "${agent_home}/.local/state" \
+    "${agent_home}/.local/bin" \
+    "${agent_home}/.config" \
+    "${agent_home}/.cache" \
+    "${agent_home}/.ssh"; do
+    mkdir -p "${dir}"
+    chown "${agent_uid}:${agent_gid}" "${dir}" 2>/dev/null || true
+done
+chmod 0700 "${agent_home}/.docker/run"
+chmod 0700 "${agent_home}/.ssh"
+
+# /run/agent carries the CMD args and restart bookkeeping; the agent service
+# runs as AGENT_USER and must be able to read it.
+mkdir -p /run/agent
+chown "${agent_uid}:${agent_gid}" /run/agent
+chmod 0755 /run/agent
+if [ -f /run/agent/args ]; then
+    chmod 0644 /run/agent/args
+fi
+
+# The hook directory is copied into the image, so it is root-owned; hooks only
+# need to be readable by the agent.
+chmod 0755 /etc/agent-entrypoint.d
+
+# Workspace: create it, then try one non-recursive chown if the agent cannot
+# write there. That covers a root-owned auto-created bind-mount source without
+# walking (and re-owning) an entire host tree.
+mkdir -p "${AGENT_WORKSPACE}" 2>/dev/null || true
+if [ ! -d "${AGENT_WORKSPACE}" ]; then
+    log "ERROR: ${AGENT_WORKSPACE} does not exist and could not be created."
+    exit 1
+fi
+if ! /command/s6-setuidgid "${AGENT_USER}" test -w "${AGENT_WORKSPACE}"; then
+    log "${AGENT_WORKSPACE} is not writable by ${AGENT_USER}; taking ownership of that directory (non-recursive)"
+    chown "${agent_uid}:${agent_gid}" "${AGENT_WORKSPACE}" 2>/dev/null || true
+fi
+if ! /command/s6-setuidgid "${AGENT_USER}" test -w "${AGENT_WORKSPACE}"; then
+    log "ERROR: ${AGENT_WORKSPACE} is not writable by ${AGENT_USER} (uid ${agent_uid}, gid ${agent_gid})."
+    log "On a host whose Docker is rootless, bind mounts appear root-owned inside the container,"
+    log "so this container cannot fix them. Use a named volume, or chown the host directory to"
+    log "${agent_uid}:${agent_gid} on the host."
+    exit 1
+fi
+log "workspace ${AGENT_WORKSPACE} is writable by ${AGENT_USER}"

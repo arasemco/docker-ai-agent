@@ -40,7 +40,10 @@
 
 services:
   agent-base:
-    init: true
+    # No `init: true`: s6-overlay's /init is PID 1 and does that job (reaping,
+    # signal forwarding). Adding Docker's tini in front would only put a second
+    # init in the chain and swallow the exit status.
+    init: false
     stdin_open: true
     tty: true
     restart: "no"

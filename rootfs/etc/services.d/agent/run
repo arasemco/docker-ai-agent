@@ -1,0 +1,41 @@
+#!/command/with-contenv bash
+# =============================================================================
+# services.d/agent/run — the agent CLI, as AGENT_USER.
+#
+# Waits for the dockerd service to announce readiness (s6-svwait -U, bounded by
+# AGENT_DOCKERD_TIMEOUT) so the CLI never races a daemon that is still starting,
+# then hands over to agent-run, which loads the container's CMD args, sources
+# the hooks and execs AGENT_CMD.
+#
+# A daemon that is down is not fatal: the wait times out, a warning is logged,
+# and the agent starts anyway (only `docker` inside it is unavailable).
+# =============================================================================
+set -euo pipefail
+
+log() {
+    printf '[agent] %s %s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$*" >&2
+}
+
+AGENT_USER="${AGENT_USER:-agent}"
+: "${AGENT_DOCKERD:=1}"
+: "${AGENT_DOCKERD_TIMEOUT:=30}"
+
+if [ "${AGENT_DOCKERD}" != "0" ]; then
+    # The service dir is created by s6's legacy-services stage, which may run a
+    # fraction after this one; wait for the symlink rather than failing.
+    for _ in $(seq 1 50); do
+        [ -e /run/service/dockerd ] && break
+        sleep 0.1
+    done
+    if [ -e /run/service/dockerd ]; then
+        if ! /command/s6-svwait -U -t "${AGENT_DOCKERD_TIMEOUT}" /run/service/dockerd 2>/dev/null; then
+            log "WARNING: dockerd did not report ready within ${AGENT_DOCKERD_TIMEOUT}s; starting the agent anyway (docker may be unavailable)"
+        fi
+    else
+        log "WARNING: no dockerd service registered; starting the agent without waiting"
+    fi
+fi
+
+date +%s > /run/agent/agent.started 2>/dev/null || true
+
+exec /command/s6-setuidgid "${AGENT_USER}" /usr/local/bin/agent-run

@@ -15,14 +15,20 @@ What it provides:
   from package managers, and Debian ships 18.20.
 - **One unprivileged user** (`agent`, uid/gid 1000 by default), owning its home
   and working directory, so bind mounts line up with the host user.
-- **A rootless Docker daemon** started by the entrypoint — `docker` works
-  inside the container without `--privileged`.
+- **s6-overlay as PID 1**, supervising two independent longruns instead of one
+  shell script: `dockerd` (the rootless Docker daemon, so `docker` works inside
+  the container without `--privileged`) and `agent` (the CLI itself). They are
+  restarted independently — a crashing daemon no longer takes the agent with
+  it, a dead agent no longer hides behind a live daemon — the daemon announces
+  readiness through s6's notification fd, and repeated failed starts back off
+  instead of restart-looping.
 - **Python 3 + uv, yq, git/gh, a native build toolchain**, the GNU userland and
   the CLI utilities agents assume are installed. Everything userland-facing
   comes from a package manager: `yq` from Debian (kislyuk's 3.x, a jq wrapper —
   not mikefarah's v4, which Debian doesn't ship), `uv` from PyPI via `pipx`
   (Debian has no `uv` package in any suite).
-- **A generic entrypoint** with a hook directory, and a healthcheck.
+- **A generic entrypoint** (stashes the docker CMD for the agent service,
+  then execs `/init`), a hook directory, and a healthcheck.
 
 It deliberately contains **no agent CLI**. Each child image installs its own
 CLI, its config and its default command on top.
@@ -38,6 +44,11 @@ RUN curl -fsSL https://claude.ai/install.sh | bash -s -- "${CLAUDE_VERSION}"
 COPY hooks/ /etc/agent-entrypoint.d/
 ENV AGENT_CMD=claude
 ```
+
+Do **not** end a child image with `USER 1000:1000`: `/init` must be PID 1 as
+root so it can prepare `/run`, fix mount-point ownership and drop privileges
+per service. The CLI still runs as `AGENT_USER` — see
+[services.d/agent/run](rootfs/etc/services.d/agent/run).
 
 and, in the child's `docker-compose.yml`:
 
@@ -123,14 +134,42 @@ the host's Docker daemon is **itself** rootless, two consequences apply:
 
 ## Contract
 
+### Services (s6-overlay)
+
+`/init` is PID 1. Two legacy-style longruns are started by
+[services-up](rootfs/etc/services.d) after the
+[cont-init scripts](rootfs/etc/cont-init.d) have run:
+
+| Service | Runs as | What it does |
+|---|---|---|
+| `dockerd` | `AGENT_USER` via `s6-setuidgid` | rootless Docker daemon; announces readiness on s6's notification fd once `docker info` answers |
+| `agent` | `AGENT_USER` via `s6-setuidgid` | waits (bounded) for `dockerd` readiness, then execs `AGENT_CMD` |
+
+Restart policy:
+
+- `dockerd` restarts on any exit; a daemon that fails
+  `AGENT_DOCKERD_MAX_RESTARTS` starts in a row (default 3) is left down and the
+  service idles, instead of restart-looping. A run of 60 s or more resets the
+  counter, and a successful start resets it too.
+- `agent` exits the container when the CLI exits **0**; a non-zero exit after
+  60 s restarts it (fresh counter), and `AGENT_RESTART_MAX` (default 3) failed
+  starts in a row stop the container instead of looping. A signal (container
+  stop) never restarts.
+
+Because the CLI is a service and not PID 1, **the container's exit status is
+s6's** (0), not the CLI's. The CLI's status is recorded in
+`/run/agent/exit-code` and logged by [agent/finish](rootfs/etc/services.d/agent/finish).
+
 ### Environment
 
 | Variable | Default | Meaning |
 |---|---|---|
-| `AGENT_CMD` | `bash` | CLI the entrypoint exec's with the container's args |
+| `AGENT_CMD` | `bash` | CLI the agent service runs |
 | `AGENT_WORKSPACE` | `$HOME/Projects` | working directory; must be writable |
 | `AGENT_DOCKERD` | `1` | start the rootless daemon (`0` skips it) |
-| `AGENT_DOCKERD_TIMEOUT` | `30` | seconds to wait for the daemon socket |
+| `AGENT_DOCKERD_TIMEOUT` | `30` | seconds to wait for daemon readiness |
+| `AGENT_DOCKERD_MAX_RESTARTS` | `3` | consecutive failed daemon starts before idling |
+| `AGENT_RESTART_MAX` | `3` | consecutive failed CLI starts before stopping the container |
 | `AGENT_HEALTHCHECK` | `auto` | `auto`, `docker`, `agent`, `url:<url>`, `off` |
 | `AGENT_HEALTH_URL` | – | extra URL that must answer successfully |
 | `XDG_RUNTIME_DIR` | `$HOME/.docker/run` | daemon socket directory |
@@ -138,8 +177,8 @@ the host's Docker daemon is **itself** rootless, two consequences apply:
 
 `AGENT_HEALTHCHECK=auto` (the default) fails when `AGENT_CMD` is not running or
 `AGENT_HEALTH_URL` does not answer; a rootless daemon that is down is logged as
-a warning, because the agent still works without it (see the section above).
-Use `docker` to make the daemon mandatory.
+a warning, because the agent still works without it. Use `docker` to make the
+daemon mandatory.
 
 ### Filesystem
 
@@ -148,15 +187,23 @@ Use `docker` to make the daemon mandatory.
 | `/home/<AGENT_USER>/Projects` | working directory (`AGENT_WORKSPACE`) |
 | `/home/<AGENT_USER>/.local/share/docker` | rootless daemon data root (own volume) |
 | `/home/<AGENT_USER>/.docker/dockerd.log` | daemon log |
+| `/run/agent/args` | container CMD, NUL-separated (written by the entrypoint) |
+| `/run/agent/exit-code` | last CLI exit status |
+| `/run/agent/*.fails` | restart counters (delete to retry after giving up) |
 | `/etc/agent-entrypoint.d/*.sh` | sourced hooks, run before the CLI starts |
+| `/etc/cont-init.d/`, `/etc/services.d/` | s6-overlay stage-2 scripts and services |
 | `/usr/local/lib/agent-base/selftest.sh` | in-container validation |
 
 ### Runtime requirements
 
 The daemon needs the container started with `seccomp:unconfined`,
 `systempaths=unconfined`, `/dev/fuse` and `/dev/net/tun`; `compose.base.yml`
-sets all of them. Without them the container still runs and the agent still
-works — only `docker` is unavailable, and the entrypoint logs why.
+sets all of them, and sets `init: false` (s6 already is the init). Without the
+devices the container still runs and the agent still works — only `docker` is
+unavailable, and the daemon service logs why.
+
+`docker exec` lands as **root** (PID 1's user). To get the agent's own shell:
+`docker compose exec --user 1000 <svc> bash`.
 
 ## Build and test
 
@@ -180,5 +227,5 @@ this directory is host tooling (see `.dockerignore`).
 | `bake.sh` | wraps bake and injects `GIT_SHA`/`GIT_REF` |
 | `compose.base.yml` | shared service definition children `extends` |
 | `docker-compose.yml` | test harness for the base itself |
-| `rootfs/` | entrypoint, healthcheck, selftest, hook directory |
+| `rootfs/` | what is copied into the image: `usr/local/bin` (entrypoint, agent-run, healthcheck), `usr/local/lib/agent-base` (selftest), `etc/services.d` (s6 services), `etc/cont-init.d` (stage-2 prep), `etc/agent-entrypoint.d` (hooks) |
 | `scripts/smoke.sh` | runtime validation in a real container |
