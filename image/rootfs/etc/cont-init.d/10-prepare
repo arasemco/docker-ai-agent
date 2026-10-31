@@ -8,8 +8,8 @@
 # instead of only refusing to start: named volumes mounted over a path the
 # image owns inherit that ownership, but a host bind mount keeps its host
 # ownership, and a directory Docker auto-created comes out root-owned. The
-# workspace is chowned non-recursively only (it can be a whole ~/Projects
-# tree); anything deeper stays as the user left it.
+# workspace is chowned non-recursively only (it can be a whole source tree);
+# anything deeper stays as the user left it.
 #
 # Exits non-zero — aborting startup with a clear message — only when the
 # workspace is still not writable by AGENT_USER after that.
@@ -21,7 +21,7 @@ log() {
 }
 
 AGENT_USER="${AGENT_USER:-agent}"
-AGENT_WORKSPACE="${AGENT_WORKSPACE:-/home/${AGENT_USER}/Projects}"
+AGENT_WORKSPACE="${AGENT_WORKSPACE:-/home/${AGENT_USER}/workspace}"
 
 agent_uid="$(id -u "${AGENT_USER}")"
 agent_gid="$(id -g "${AGENT_USER}")"

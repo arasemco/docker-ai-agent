@@ -35,11 +35,8 @@ services:
     # The entrypoint hands CMD to the agent service, which runs
     # `bash -lc "sleep infinity"` — enough to keep the container up for exec.
     command: ["-lc", "sleep infinity"]
-    volumes:
-      # Volume-backed workspace: the stack must work on any host, including
-      # ones whose Docker is rootless (where host bind mounts appear
-      # root-owned inside the container).
-      - agent-projects:/home/${AGENT_USER:-agent}/Projects
-
-volumes:
-  agent-projects:
+    # No workspace mount here: agent.yml/mounts.yml own that decision. Without
+    # one the agent works in the directory baked into the image
+    # (/home/agent/workspace, owned by the agent user), which is fine for a
+    # throwaway container and makes this fragment usable unchanged on hosts
+    # where bind mounts do not work (rootless outer Docker).

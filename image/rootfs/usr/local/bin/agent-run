@@ -4,7 +4,7 @@
 # AGENT_USER (never root), after that script has waited for the Docker daemon.
 #
 #   AGENT_CMD        CLI to run (image ENV; default bash)
-#   AGENT_WORKSPACE  working directory (image ENV: $HOME/Projects)
+#   AGENT_WORKSPACE  working directory (image ENV: $HOME/workspace)
 #   /run/agent/args  NUL-separated arguments from the container's CMD, written
 #                    by agent-entrypoint (absent/empty = no arguments)
 #
@@ -15,7 +15,7 @@
 # =============================================================================
 set -e
 
-: "${AGENT_WORKSPACE:=$HOME/Projects}"
+: "${AGENT_WORKSPACE:=$HOME/workspace}"
 
 cd "$AGENT_WORKSPACE"
 

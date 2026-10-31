@@ -44,7 +44,7 @@ if [ -w "$HOME" ]; then
 else
     fail "HOME ($HOME) is not writable"
 fi
-workspace="${AGENT_WORKSPACE:-$HOME/Projects}"
+workspace="${AGENT_WORKSPACE:-$HOME/workspace}"
 if [ -w "$workspace" ]; then
     pass "workspace ($workspace) is writable"
 else

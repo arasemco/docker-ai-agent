@@ -33,7 +33,7 @@
 # Agent-specific parts do NOT belong here — installing the CLI, its config
 # and defaults go in the child image (see ../examples/child-image/):
 #
-#     FROM agent-base:1.1.0
+#     FROM agent-base:1.2.0
 #     ARG CLI_VERSION=1.0.0
 #     RUN npm install --global "some-agent-cli@${CLI_VERSION}"
 #     ENV AGENT_CMD=some-agent-cli
@@ -129,13 +129,13 @@ RUN existing_group="$(getent group "${AGENT_GID}" | cut -d: -f1)" \
 # Directories every agent image needs, created (and owned) here so a named
 # volume mounted on any of them inherits the agent user's ownership on first
 # use instead of coming up root-owned:
-#   ~/Projects                 AGENT_WORKSPACE, the agent's working directory
+#   ~/workspace                AGENT_WORKSPACE, the agent's working directory
 #   ~/.local/share/docker      rootless daemon data root (named volume)
 #   ~/.docker                  daemon log + XDG_RUNTIME_DIR
 #   ~/.local/bin, ~/.config    CLI installers and XDG config
 #   ~/.ssh, ~/.gitconfig       git identity/credentials, gh auth
 #   /etc/agent-entrypoint.d    sourced hooks (child images COPY into it)
-RUN mkdir -p "/home/${AGENT_USER}/Projects" \
+RUN mkdir -p "/home/${AGENT_USER}/workspace" \
         "/home/${AGENT_USER}/.local/share/docker" \
         "/home/${AGENT_USER}/.local/bin" \
         "/home/${AGENT_USER}/.local/state" \
@@ -296,7 +296,7 @@ ENV HOME=/home/${AGENT_USER} \
     AGENT_USER=${AGENT_USER} \
     AGENT_UID=${AGENT_UID}
 
-ENV AGENT_WORKSPACE=${HOME}/Projects \
+ENV AGENT_WORKSPACE=${HOME}/workspace \
     AGENT_DOCKERD=1 \
     AGENT_DOCKERD_TIMEOUT=30 \
     AGENT_DOCKERD_MAX_RESTARTS=3 \
@@ -307,7 +307,7 @@ ENV AGENT_WORKSPACE=${HOME}/Projects \
 # under $HOME because there is no systemd-managed /run/user/<uid> here.
 ENV XDG_RUNTIME_DIR=${HOME}/.docker/run \
     DOCKER_HOST=unix://${HOME}/.docker/run/docker.sock
-WORKDIR ${HOME}/Projects
+WORKDIR ${HOME}/workspace
 
 COPY --chmod=755 rootfs/usr/local/bin/ /usr/local/bin/
 COPY --chmod=755 rootfs/usr/local/lib/agent-base/ /usr/local/lib/agent-base/

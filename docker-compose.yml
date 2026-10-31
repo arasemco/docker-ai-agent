@@ -27,5 +27,5 @@ include:
   - compose/image.yml
 
 # No volumes block here: each fragment declares the volume it mounts
-# (daemon.yml -> agent-docker, image.yml -> agent-projects), so include and -f
+# (daemon.yml -> agent-docker, image.yml -> agent-workspace), so include and -f
 # both work without the composing file knowing about them.

@@ -23,7 +23,7 @@ services:
     environment:
       # Working directory. Mount something over it (mounts.yml) to work on real
       # files; otherwise it is just a directory in the container.
-      - AGENT_WORKSPACE=/home/${AGENT_USER:-agent}/Projects
+      - AGENT_WORKSPACE=${AGENT_WORKSPACE:-/home/${AGENT_USER:-agent}/workspace}
       # Service toggles and restart budgets (see the image's README).
       - AGENT_DOCKERD=${AGENT_DOCKERD:-1}
       - AGENT_DOCKERD_TIMEOUT=${AGENT_DOCKERD_TIMEOUT:-30}

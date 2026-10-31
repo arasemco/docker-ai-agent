@@ -34,7 +34,7 @@ scripts/bake.sh                  # build the image via bake
 
 ```dockerfile
 # my-agent/Dockerfile
-FROM agent-base:1.1.0
+FROM agent-base:1.2.0
 
 RUN npm install --global "my-agent-cli@1.2.3"
 RUN install -d -o 1000 -g 1000 /home/agent/.config/my-agent-cli
@@ -50,7 +50,7 @@ services:
     build:
       context: ./image
       args:
-        AGENT_BASE: agent-base:1.1.0
+        AGENT_BASE: agent-base:1.2.0
     command: ["--help"]                  # args for AGENT_CMD
     volumes:
       - my-agent-home:/home/agent/.config/my-agent-cli
@@ -84,7 +84,7 @@ exactly one thing:
 | `image.yml` | build of `image/`, default command, `agent-projects` volume | the root file and `make` |
 | `proxy.yml` | outbound proxy pass-through (no values baked in) | `--with proxy` |
 | `limits.yml` | CPU/memory from `AGENT_CPUS` / `AGENT_MEMORY` | `--with limits` |
-| `mounts.yml` | bind the workspace to `AGENT_PROJECTS_HOST` (default `~/Projects`) | `--with mounts` |
+| `mounts.yml` | bind the workspace to `AGENT_WORKSPACE_HOST` (default `./workspace`) | `--with mounts` |
 
 The root [docker-compose.yml](docker-compose.yml) is the minimal working stack:
 it `include:`s `base`, `daemon` and `image`, so nothing is copied or kept in
@@ -158,7 +158,7 @@ and logged.
 | Variable | Default | Meaning |
 |---|---|---|
 | `AGENT_CMD` | `bash` | CLI the agent service runs |
-| `AGENT_WORKSPACE` | `$HOME/Projects` | working directory; must be writable |
+| `AGENT_WORKSPACE` | `$HOME/workspace` | working directory; must be writable |
 | `AGENT_DOCKERD` | `1` | start the rootless daemon (`0` skips it) |
 | `AGENT_DOCKERD_TIMEOUT` | `30` | seconds to wait for daemon readiness |
 | `AGENT_DOCKERD_MAX_RESTARTS` | `3` | consecutive failed daemon starts before idling |
@@ -178,7 +178,7 @@ the daemon mandatory.
 
 | Path | Purpose |
 |---|---|
-| `/home/<AGENT_USER>/Projects` | working directory (`AGENT_WORKSPACE`) |
+| `/home/<AGENT_USER>/workspace` | working directory (`AGENT_WORKSPACE`) |
 | `/home/<AGENT_USER>/.local/share/docker` | rootless daemon data root (own volume) |
 | `/home/<AGENT_USER>/.docker/dockerd.log` | daemon log |
 | `/run/agent/args` | container CMD, NUL-separated (written by the entrypoint) |
@@ -281,8 +281,8 @@ Rules:
   its defaults; no `git` noise.
 
 So on a plain clone of this repo the image is tagged locally
-(`agent-base:1.1.0`); with a remote set it is tagged for that forge's registry
-(`<host>/<owner>/agent-base:1.1.0`). Optional metadata that stays unset renders
+(`agent-base:1.2.0`); with a remote set it is tagged for that forge's registry
+(`<host>/<owner>/agent-base:1.2.0`). Optional metadata that stays unset renders
 as `unknown` in the OCI labels.
 
 Pushing needs credentials for that registry first:
@@ -294,4 +294,4 @@ scripts/bake.sh --push              # tags + push, derived from the remote
 
 For a Gitea/Forgejo registry the image path is `<host>/<owner>/<image>`, so a
 remote of `https://git.example.com/team/repo.git` yields
-`git.example.com/team/agent-base:1.1.0`.
+`git.example.com/team/agent-base:1.2.0`.

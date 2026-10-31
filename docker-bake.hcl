@@ -19,7 +19,7 @@
 
 // Image repository prefix, without a trailing slash, e.g.
 // "ghcr.io/youruser" or "registry.example:5000/team". Empty means plain local
-// tags ("agent-base:1.1.0"), which is what an unconfigured clone gets.
+// tags ("agent-base:1.2.0"), which is what an unconfigured clone gets.
 variable "REGISTRY" { default = "" }
 
 // Where this packaging lives and who publishes it. All optional: the OCI
@@ -32,7 +32,7 @@ variable "LICENSES"   { default = "MIT" }
 
 // agent-base's own version, independent of any CLI installed on top of it.
 // Child images pin the base by this tag (or by digest, which is stronger).
-variable "BASE_VERSION" { default = "1.1.0" }
+variable "BASE_VERSION" { default = "1.2.0" }
 
 // The unprivileged user the image runs. Children normally keep "agent" — one
 // home path shared by every stack — and only rename it when they must.
