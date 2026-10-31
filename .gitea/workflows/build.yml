@@ -1,27 +1,21 @@
 # =============================================================================
 # Build and push the images — Gitea Actions only
 # =============================================================================
-# Runs on this repository's Gitea instance (git.omesa.net). There is no GitHub
-# path: the registry host, namespace and credentials all come from the Gitea
-# context, so nothing has to be configured per forge.
+# Runs on this repository's Gitea instance. Registry host, namespace and
+# provenance all come from the Gitea context; nothing is configured per forge.
 #
-# What it produces, in order:
-#   agent-base:<version> + :latest   the base image every stack builds FROM
-#   opencode:<version>  + :latest
-#   dsh:<version>       + :latest
+# Produces, in order:
+#   agent-base:<version> + :latest
+#   opencode:<version>    + :latest
+#   dsh:<version>         + :latest
 #
-# Credentials: a Gitea personal access token in the repository secret GIT_TOKEN,
-# with the "write:package" scope. The built-in job token (GITEA_TOKEN) is not
-# accepted by the container registry: logging in with it returns
-#   Get "https://<host>/v2/": unauthorized
-# even though the token itself is present and valid for the API. The container
-# registry documents a personal access token as the credential to use instead of
-# a password (which is also what accounts with 2FA require). Pull requests never
-# log in, so they need no credential.
+# Required repository secret:
+#   GIT_TOKEN   a Gitea access token with the "write:package" scope, created by
+#               the account that owns the registry namespace. The built-in
+#               GITEA_TOKEN is rejected by the container registry.
 #
-# Cache lives in the registry (<REGISTRY>/agent-base:buildcache), which works on
-# a self-hosted forge; the GitHub-only `type=gha` cache does not exist here.
-# Pull requests build without pushing and without logging in.
+# Cache lives in the registry (<REGISTRY>/agent-base:buildcache). Pull requests
+# build without logging in and without pushing.
 # =============================================================================
 
 name: Build and push images
@@ -49,17 +43,17 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
         with:
-          # docker-bake.hcl's labels take the commit SHA and ref; a full history
-          # keeps tag lookups meaningful.
+          # The OCI labels take the commit SHA and ref; a full history keeps tag
+          # lookups meaningful.
           fetch-depth: 0
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      # Everything the bake file cannot know: where the registry is, which
-      # repository this is, and which commit is being built.
+      # Resolves once, into $GITHUB_ENV, so later steps carry no environment
+      # block of their own. docker-bake.hcl reads REGISTRY, SOURCE_URL, GIT_SHA,
+      # GIT_REF and the cache flags straight from the environment.
       - name: Resolve registry and provenance
-        id: vars
         run: |
           set -euo pipefail
 
@@ -69,19 +63,27 @@ jobs:
 
           owner="${GITHUB_REPOSITORY%%/*}"
           registry="${registry_host}/${owner}"
-          source_url="${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}"
 
           # refs/heads/main -> main, refs/tags/v1.2.3 -> v1.2.3
           git_ref="${GITHUB_REF#refs/tags/}"
           git_ref="${git_ref#refs/heads/}"
 
+          # Pull requests are read-only: never log in, never publish a cache
+          # produced by unmerged code.
+          cache_write=true
+          if [ "${GITHUB_EVENT_NAME}" = "pull_request" ]; then
+              cache_write=false
+          fi
+
           {
-            echo "registry_host=${registry_host}"
-            echo "registry=${registry}"
-            echo "source_url=${source_url}"
-            echo "git_sha=${GITHUB_SHA}"
-            echo "git_ref=${git_ref}"
-          } >> "${GITHUB_OUTPUT}"
+            echo "REGISTRY=${registry}"
+            echo "REGISTRY_HOST=${registry_host}"
+            echo "SOURCE_URL=${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}"
+            echo "GIT_SHA=${GITHUB_SHA}"
+            echo "GIT_REF=${git_ref}"
+            echo "CACHE_READ=true"
+            echo "CACHE_WRITE=${cache_write}"
+          } >> "${GITHUB_ENV}"
 
       # Fail with an actionable message instead of docker's generic denial.
       - name: Check registry credentials
@@ -103,48 +105,28 @@ jobs:
         if: github.event_name != 'pull_request'
         uses: docker/login-action@v3
         with:
-          registry: ${{ steps.vars.outputs.registry_host }}
+          registry: ${{ env.REGISTRY_HOST }}
           username: ${{ github.repository_owner }}
           password: ${{ secrets.GIT_TOKEN }}
 
-      # The build-time checks: shellcheck on every script and the tool matrix,
-      # in the image's "test" stage. Exports nothing.
+      # Build-time checks: shellcheck on every script and the tool matrix, in the
+      # image's "test" stage. Exports nothing.
       - name: Build the test stage
         uses: docker/bake-action@v7
         with:
           targets: test
-        env:
-          REGISTRY: ${{ steps.vars.outputs.registry }}
-          SOURCE_URL: ${{ steps.vars.outputs.source_url }}
-          GIT_SHA: ${{ steps.vars.outputs.git_sha }}
-          GIT_REF: ${{ steps.vars.outputs.git_ref }}
 
-      # The stacks build FROM the base image, so the two bakes run in order: the
-      # base first, then the stacks against the tag it just produced.
+      # The stacks build FROM agent-base, and one bake builds its targets in
+      # parallel, so the base is pushed first and the stacks read that tag. That
+      # is the only reason this is two steps rather than one.
       - name: Build and push the base image
         uses: docker/bake-action@v7
         with:
           targets: agent-base
           push: ${{ github.event_name != 'pull_request' }}
-        env:
-          REGISTRY: ${{ steps.vars.outputs.registry }}
-          SOURCE_URL: ${{ steps.vars.outputs.source_url }}
-          GIT_SHA: ${{ steps.vars.outputs.git_sha }}
-          GIT_REF: ${{ steps.vars.outputs.git_ref }}
-          # Registry cache: read on every run, written only where push rights
-          # exist. A failed read is a cache miss, not a build failure.
-          CACHE_READ: "true"
-          CACHE_WRITE: ${{ github.event_name != 'pull_request' }}
 
       - name: Build and push the stacks
         uses: docker/bake-action@v7
         with:
           targets: opencode dsh
           push: ${{ github.event_name != 'pull_request' }}
-        env:
-          REGISTRY: ${{ steps.vars.outputs.registry }}
-          SOURCE_URL: ${{ steps.vars.outputs.source_url }}
-          GIT_SHA: ${{ steps.vars.outputs.git_sha }}
-          GIT_REF: ${{ steps.vars.outputs.git_ref }}
-          CACHE_READ: "true"
-          CACHE_WRITE: ${{ github.event_name != 'pull_request' }}
