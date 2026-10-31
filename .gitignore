@@ -1,3 +1,7 @@
 .idea
+
+# Local, machine-specific values — see README#overrides.
 .env
 .env.local
+compose/local.yml
+data/

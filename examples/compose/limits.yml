@@ -1,0 +1,17 @@
+# =============================================================================
+# Example: CPU/memory limits for the opencode container
+# =============================================================================
+# Copy to compose/local.yml (gitignored) — `make` merges it automatically — or
+# pass it explicitly:
+#
+#   docker compose -f docker-compose.yml -f compose/local.yml up -d
+#   docker compose -f docker-compose.yml -f examples/compose/limits.yml up -d
+# =============================================================================
+
+services:
+  opencode:
+    deploy:
+      resources:
+        limits:
+          cpus: "8"
+          memory: 32G

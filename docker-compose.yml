@@ -1,77 +1,69 @@
 # =============================================================================
 # opencode stack — the OpenCode Web UI on agent-base
 # =============================================================================
-# The sandbox (rootless Docker, seccomp/devices, resource limits, proxy env,
-# Projects mount) comes from agent-base/compose.base.yml via `extends`. This
-# file adds only what is OpenCode-specific: the build, the published port, the
-# provider credentials and OpenCode's own state volumes.
+# The sandbox (s6 services, rootless Docker, seccomp/devices, proxy
+# pass-through) comes from agent-base/compose/base.yml via `extends`. This file
+# adds only what is OpenCode-specific: the build, the published port, the
+# credentials and OpenCode's own state volumes.
 #
-#   cp .env.example .env && docker compose up -d --build
+# Nothing here is host-specific — no proxy values, no host paths, no CPU or
+# memory numbers. Put those in a gitignored compose/local.yml started from
+# examples/, or in .env:
+#
+#   cp .env.example .env                    # ports, image, password
+#   cp examples/compose/host-mounts.yml compose/local.yml   # optional
+#   docker compose up -d --build
+#
 #   http://127.0.0.1:4096
 # =============================================================================
 
 services:
   opencode:
     extends:
-      file: ../agent-base/compose.base.yml
+      file: ../agent-base/compose/base.yml
       service: agent-base
     image: ${OPENCODE_IMAGE:-opencode:local}
     pull_policy: build
     build:
-      context: .
+      context: ./image
       dockerfile: Dockerfile
       args:
-        # Pin the shared base by tag; override AGENT_BASE to build against a
-        # newer agent-base without editing this file.
-        AGENT_BASE: ${AGENT_BASE:-git.omesa.net/asemo/agent-base:1.1.0}
+        # Pin the shared base by tag (never :latest) so a rebuild is
+        # reproducible; override AGENT_BASE to use a pushed image.
+        AGENT_BASE: ${AGENT_BASE:-agent-base:1.1.0}
         OPENCODE_VERSION: ${OPENCODE_VERSION:-1.19.5}
     hostname: opencode
     command: ["web", "--port", "${OPENCODE_PORT:-4096}", "--hostname", "0.0.0.0"]
     ports:
-      # Bound to loopback by default: the server password has a weak fallback
-      # (see .env.example), so publishing on 0.0.0.0 would expose the UI to
-      # the LAN. Set OPENCODE_BIND_IP=0.0.0.0 deliberately if you need that.
+      # Loopback by default, because the password has a weak fallback (see
+      # .env.example). Set OPENCODE_BIND_IP=0.0.0.0 to publish on the LAN.
       - "${OPENCODE_BIND_IP:-127.0.0.1}:${OPENCODE_PORT:-4096}:${OPENCODE_PORT:-4096}"
     environment:
-      # Protect the Web UI with a password (HTTP basic auth).
+      # HTTP basic auth for the Web UI.
       - OPENCODE_SERVER_PASSWORD=${OPENCODE_SERVER_PASSWORD:-changeme123}
-      # Provider keys; anything unset simply isn't offered by the UI.
-      - MAMMOUTH_API_KEY=${MAMMOUTH_API_KEY:-}
+      # Provider credentials, passed through empty: set the ones you use in
+      # .env (or a local override) and the rest simply stay unset.
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
       - OPENAI_API_KEY=${OPENAI_API_KEY:-}
-      # Local Ollama server (see opencode.jsonc). NO_PROXY in the inherited
-      # proxy block already keeps 192.168.1.48 off the Squid proxy.
-      - OLLAMA_BASE_URL=${OLLAMA_BASE_URL:-http://192.168.1.48:11434/v1}
-      - OLLAMA_API_KEY=${OLLAMA_API_KEY:-ollama}
+      - GEMINI_API_KEY=${GEMINI_API_KEY:-}
+      - OLLAMA_BASE_URL=${OLLAMA_BASE_URL:-}
+      - OLLAMA_API_KEY=${OLLAMA_API_KEY:-}
     volumes:
       # OpenCode state. Named volumes by default so the directories are created
       # with the agent user's ownership; point the *_HOST variables at an
       # existing host path (owned by uid 1000) to bind instead.
-      #   config -> providers/models (seeded from the image on first use)
+      #   config -> providers/models (see examples/config/)
       #   data   -> auth.json, session DB, snapshots
       #   state  -> XDG state
       - ${OPENCODE_CONFIG_HOST:-opencode-config}:/home/agent/.config/opencode
       - ${OPENCODE_DATA_HOST:-opencode-data}:/home/agent/.local/share/opencode
       - ${OPENCODE_STATE_HOST:-opencode-state}:/home/agent/.local/state/opencode
-      # Host trees, same layout as the sibling stacks. Projects comes from
-      # compose.base.yml; stacks are read-only except the shared templates.
-      # They are added here rather than in the base so the shared file makes no
-      # assumption that ~/stacks exists on a given host.
-      - ${HOME}/stacks:/home/agent/stacks:ro
-      - ${HOME}/stacks/000-templates:/home/agent/stacks/000-templates:rw
 
 volumes:
-  # Declared by the consuming project; `extends` does not carry top-level
-  # volume declarations across files. Compose prefixes each with the project
-  # name, so this is "opencode_agent-docker" and cannot collide with the same
-  # volume in another stack. Set AGENT_DOCKER_VOLUME to override the name (and
-  # declare that name instead if you do).
+  # Required by agent-base/compose/base.yml (extends cannot carry top-level
+  # volume declarations across files). Compose prefixes each with the project
+  # name, so these cannot collide with another stack's volumes.
   agent-docker:
-  # Only used when AGENT_PROJECTS_HOST names a volume instead of a host path
-  # (compose treats a non-absolute source as a named volume). Handy on hosts
-  # where the outer Docker is rootless and bind mounts appear root-owned, and
-  # for throwaway test stacks.
-  agent-projects:
   opencode-config:
   opencode-data:
   opencode-state:
