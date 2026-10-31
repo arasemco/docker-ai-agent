@@ -1,63 +1,51 @@
 // =============================================================================
-// docker-bake.hcl — build definition for the agent-base image
+// docker-bake.hcl — build definition for the base image and every stack
 // =============================================================================
 //
-// Usage (through scripts/bake.sh, which also fills the provenance variables):
-//   scripts/bake.sh --print        # resolve and print the config, no build
-//   scripts/bake.sh                # build the "default" group
-//   scripts/bake.sh --push         # build and push
-//   scripts/bake.sh test           # build + run the in-image test stage
+// Usage (through scripts/bake.sh, which fills the provenance variables):
+//   scripts/bake.sh --print          # resolved config, no build
+//   scripts/bake.sh                  # default group: the base image only
+//   scripts/bake.sh opencode         # one stack (needs the base image)
+//   scripts/bake.sh all              # base + every stack, in order
+//   scripts/bake.sh --push           # needs REGISTRY, derived from the remote
 //
-// Every variable has a neutral default: no registry, no author, no source URL.
-// Set one through the environment (an env var overrides a `variable` block's
-// default when the names match) or with `scripts/bake.sh --set REGISTRY=...`.
-//
-// HCL cannot read git or CI context, so scripts/bake.sh computes GIT_SHA,
-// GIT_REF and the rest and exports them before invoking bake.
+// Stack targets build FROM the base image. `scripts/bake.sh all` builds the base
+// first and then each stack against it; the stack build args point at the same
+// tag, so a single run produces a consistent set.
 // =============================================================================
 
-// Image repository prefix, without a trailing slash, e.g.
-// "ghcr.io/youruser" or "registry.example:5000/team". Empty means plain local
-// tags ("agent-base:1.4.0"), which is what an unconfigured clone gets.
+// Image repository prefix, without a trailing slash. Empty means plain local
+// tags; scripts/bake.sh derives it from the git remote and an environment
+// variable overrides both.
 variable "REGISTRY" { default = "" }
 
-// Where this packaging lives and who publishes it. All optional: the OCI
-// labels fall back to "unknown" when unset, so nothing here assumes a
-// particular owner.
+// Optional provenance metadata, filled in by scripts/bake.sh. Unset values
+// render as "unknown" in the OCI labels.
 variable "SOURCE_URL" { default = "" }
 variable "AUTHOR"     { default = "" }
 variable "VENDOR"     { default = "" }
-// Empty by default: the licence belongs to whoever owns the repository.
-// scripts/bake.sh fills it from the LICENSE file when one exists.
-variable "LICENSES" { default = "" }
+variable "LICENSES"   { default = "" }
 
-// agent-base's own version, independent of any CLI installed on top of it.
-// Child images pin the base by this tag (or by digest, which is stronger).
+// The base image's own version. Stacks pin this tag, so bump it whenever
+// anything under image/ changes.
 variable "BASE_VERSION" { default = "1.4.1" }
 
-// The unprivileged user the image runs. Children normally keep "agent" — one
-// home path shared by every stack — and only rename it when they must.
+// Tag applied in addition to the version tag, for every target.
+variable "TAG" { default = "latest" }
+
+// The unprivileged user the base image runs.
 variable "AGENT_USER" { default = "agent" }
 variable "AGENT_UID"  { default = "1000" }
 variable "AGENT_GID"  { default = "1000" }
 
-// Pinned tool versions. DOCKER_VERSION is the in-container rootless engine;
-// list candidates with `apt-cache madison docker-ce` inside the base image.
-variable "DOCKER_VERSION" { default = "29.8.1" }
-// uv (Python toolchain) from PyPI; Debian does not package it.
-variable "UV_VERSION" { default = "0.13.6" }
-
-// s6-overlay release, pinned rather than tracked as "latest". The per-arch
-// sha256 digests live in image/Dockerfile next to the download, because both
-// tarballs are verified there; bump the two together.
+// Pinned tool versions for the base image.
+variable "DOCKER_VERSION"     { default = "29.8.1" }
+variable "UV_VERSION"         { default = "0.13.6" }
 variable "S6_OVERLAY_VERSION" { default = "3.2.3.0" }
 
-// Frozen build input, pinned by digest: a floating tag can be repointed
-// upstream at any time, digests cannot. Must stay a glibc base (several agent
-// CLIs ship glibc-only native builds). To bump:
+// Frozen build input, pinned by digest. To bump:
 //   docker buildx imagetools inspect debian:bookworm-slim
 // and update both this digest and image/Dockerfile's DEBIAN_REF default.
-// Node/npm come from Debian's own packages, not from the base image.
 variable "DEBIAN_BASE" {
   default = {
     name   = "docker.io/library/debian"
@@ -84,18 +72,45 @@ variable "GIT_REF" { default = "unknown" }
 variable "PLATFORMS" { default = "linux/amd64" }
 
 // Build layers are cached in the registry as <REGISTRY>/agent-base:buildcache
-// and always read from it (a failed read is a cache miss, not an error).
-// Writing needs push rights, so it is off unless CACHE_WRITE=true — CI sets it
-// on push and tag runs, and leaves pull requests read-only.
+// and always read from it (a failed read is a cache miss). Writing needs push
+// rights, so it is off unless CACHE_WRITE=true — CI sets it on push and tag
+// runs and leaves pull requests read-only.
 variable "CACHE_WRITE" {
   type    = bool
   default = false
 }
 
-// Pure OCI-standard labels. Optional metadata renders as "unknown" instead of
-// assuming an owner for the image.
+// Reading the registry cache is also off by default: until the cache tag has
+// been written once it only produces a "cache importer ... not found" line on
+// every local build. CI turns it on where the cache actually exists.
+variable "CACHE_READ" {
+  type    = bool
+  default = false
+}
+
+// ---------------------------------------------------------------------------
+// Stack pins
+// ---------------------------------------------------------------------------
+// Exact versions, never dist-tags: a rebuild must be reproducible.
+
+variable "OPENCODE_VERSION" { default = "1.19.5" }
+
+variable "DSH_VERSION" { default = "0.2.1-rc.5" }
+
+// Official Node 22 image, pinned by digest; the dsh stack copies its node and
+// npm because the base image ships Debian's Node 18.
+variable "NODE_REF" {
+  default = "docker.io/library/node:22-bookworm-slim@sha256:4b150b48b4116e2a22f2c39cc27025fbf4f153e2078fd3b14d159fdb5c7279da"
+}
+
+// Where the dsh "test" target reads $DSH_HOME/.credentials.yaml from.
+variable "DSH_CREDENTIALS" { default = "data/dsh-home/.credentials.yaml" }
+
+// ---------------------------------------------------------------------------
+// Labels
+// ---------------------------------------------------------------------------
 function "oci_labels" {
-  params = [title, description, version, base]
+  params = [title, description, version, base_name]
   result = {
     "org.opencontainers.image.created"       = timestamp()
     "org.opencontainers.image.authors"       = AUTHOR != "" ? AUTHOR : "unknown"
@@ -109,18 +124,30 @@ function "oci_labels" {
     "org.opencontainers.image.ref.name"      = GIT_REF
     "org.opencontainers.image.title"         = title
     "org.opencontainers.image.description"   = description
-    "org.opencontainers.image.base.name"     = "${base.name}:${base.tag}"
-    "org.opencontainers.image.base.digest"   = base.digest
+    "org.opencontainers.image.base.name"     = base_name
   }
+}
+
+// The base image's own tags, reused by the stack build args so one run produces
+// a consistent set.
+variable "AGENT_BASE" {
+  default = image_ref("agent-base", BASE_VERSION)
 }
 
 group "default" {
   targets = ["agent-base"]
 }
 
+// Every image in the repository, base first.
+group "all" {
+  targets = ["agent-base", "opencode", "dsh"]
+}
+
+// ---------------------------------------------------------------------------
+// agent-base
+// ---------------------------------------------------------------------------
 target "agent-base" {
-  // The build context is image/ only: Dockerfile plus rootfs/. Compose files,
-  // examples and scripts are host tooling and stay out of the image.
+  // The build context is image/ only: Dockerfile plus rootfs/.
   context    = "image"
   dockerfile = "Dockerfile"
   // Never the last stage: "test" comes after and must not be pushed.
@@ -139,11 +166,11 @@ target "agent-base" {
 
   // Registry cache: no dependency on a CI-specific cache service, so the same
   // build definition works on GitHub Actions, Gitea Actions and a laptop.
-  cache-from = REGISTRY == "" ? [] : ["type=registry,ref=${REGISTRY}/agent-base:buildcache"]
+  cache-from = CACHE_READ && REGISTRY != "" ? ["type=registry,ref=${REGISTRY}/agent-base:buildcache"] : []
   cache-to   = CACHE_WRITE && REGISTRY != "" ? ["type=registry,ref=${REGISTRY}/agent-base:buildcache,mode=max"] : []
 
   tags = [
-    image_ref("agent-base", "latest"),
+    image_ref("agent-base", TAG),
     image_ref("agent-base", BASE_VERSION),
   ]
 
@@ -151,7 +178,7 @@ target "agent-base" {
     "agent-base",
     "Shared sandbox base for AI coding-agent CLIs: Debian 12, s6-supervised rootless Docker and agent service, unprivileged user, Python/uv, dev toolchain",
     BASE_VERSION,
-    DEBIAN_BASE,
+    "${DEBIAN_BASE.name}:${DEBIAN_BASE.tag}",
   )
 
   platforms = split(",", PLATFORMS)
@@ -163,12 +190,92 @@ target "agent-base-dev" {
   tags     = [image_ref("agent-base", "dev")]
 }
 
-// Builds the image plus the "test" stage: shellcheck on every script plus a
-// tool-matrix selftest, all at build time (no daemon needed). Not in the
-// default group and exports nothing.
+// Builds the base image plus its "test" stage (shellcheck + tool matrix).
+// Not in the default group and exports nothing.
 target "test" {
   inherits = ["agent-base"]
   target   = "test"
   tags     = []
   output   = ["type=cacheonly"]
+}
+
+// ---------------------------------------------------------------------------
+// opencode
+// ---------------------------------------------------------------------------
+target "opencode" {
+  context    = "stacks/opencode/image"
+  dockerfile = "Dockerfile"
+  target     = "opencode"
+
+  args = {
+    AGENT_BASE       = AGENT_BASE
+    OPENCODE_VERSION = OPENCODE_VERSION
+  }
+
+  tags = [
+    image_ref("opencode", TAG),
+    image_ref("opencode", OPENCODE_VERSION),
+  ]
+
+  labels = oci_labels(
+    "opencode",
+    "OpenCode CLI/Web UI on agent-base: s6-supervised sandbox, rootless Docker, persistent state",
+    OPENCODE_VERSION,
+    "${AGENT_BASE}",
+  )
+
+  platforms = split(",", PLATFORMS)
+}
+
+target "opencode-dev" {
+  inherits = ["opencode"]
+  tags     = [image_ref("opencode", "dev")]
+}
+
+// ---------------------------------------------------------------------------
+// dsh (DeepSeek Harness)
+// ---------------------------------------------------------------------------
+target "dsh" {
+  context    = "stacks/deepseek-harness/image"
+  dockerfile = "Dockerfile"
+  // The Dockerfile's last stage is "test" (it needs a BuildKit secret), so the
+  // pushed image must be "runtime".
+  target     = "runtime"
+
+  args = {
+    AGENT_BASE  = AGENT_BASE
+    DSH_VERSION = DSH_VERSION
+    NODE_REF    = NODE_REF
+  }
+
+  tags = [
+    image_ref("dsh", TAG),
+    image_ref("dsh", DSH_VERSION),
+  ]
+
+  labels = oci_labels(
+    "dsh",
+    "DeepSeek Harness (dsh) Web UI on agent-base: Node 22 from the official image, s6-supervised rootless Docker, loopback-only UI",
+    DSH_VERSION,
+    "${AGENT_BASE}",
+  )
+
+  platforms = split(",", PLATFORMS)
+}
+
+target "dsh-dev" {
+  inherits = ["dsh"]
+  tags     = [image_ref("dsh", "dev")]
+}
+
+// Builds the dsh runtime image plus its "test" stage, which loads a real
+// credentials file as a BuildKit secret and checks it against the API and a
+// headless run. Never pushed; `make test` supplies the secret.
+target "dsh-test" {
+  inherits        = ["dsh"]
+  target          = "test"
+  tags            = []
+  output          = ["type=cacheonly"]
+  secret          = ["type=file,id=dsh_credentials,src=${DSH_CREDENTIALS}"]
+  no-cache-filter = ["test"]
 }

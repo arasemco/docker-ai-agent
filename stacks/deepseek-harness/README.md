@@ -1,7 +1,7 @@
 # deepseek-harness
 
 The [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) (`dsh`)
-Web UI in a container, built on [agent-base](../agent-base/README.md): an
+Web UI in a container, built on [agent-base](../../README.md): an
 s6-supervised sandbox with a rootless Docker daemon, a development toolchain and
 persistent state.
 
@@ -64,7 +64,7 @@ written by the UI, and session history.
 | [docs/index.md](docs/index.md) | overview and reading order |
 | [docs/configuration.md](docs/configuration.md) | variables, host networking, credentials, state, healthcheck |
 | [docs/troubleshooting.md](docs/troubleshooting.md) | UI unreachable, healthcheck failing, 401, daemon |
-| [.agents/README.md](.agents/README.md) | working on this repository: map, invariants, checks |
+| [.agents/README.md](../../.agents/README.md) | working on this repository: map, invariants, checks |
 
 ## Layout
 

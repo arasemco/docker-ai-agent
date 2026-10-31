@@ -20,7 +20,7 @@
 # registry prefix this resolves to a locally built image; override AGENT_BASE to
 # use a pushed one.
 ARG AGENT_BASE=agent-base:1.4.0
-FROM ${AGENT_BASE}
+FROM ${AGENT_BASE} AS opencode
 
 # Exact opencode-ai version (`npm view opencode-ai versions`); a dist-tag would
 # float.

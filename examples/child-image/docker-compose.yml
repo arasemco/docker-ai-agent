@@ -2,18 +2,13 @@
 # Example: a child stack on agent-base's compose fragments
 # =============================================================================
 # This file carries ONLY what is specific to the example agent. The sandbox —
-# s6 services, rootless Docker devices/seccomp, optional proxy/limits/mounts —
-# is assembled by agent-base's scripts/compose.sh, which also renames the
-# fragments' canonical service (`agent-base`) to the service name below.
+# s6 services, rootless Docker devices/seccomp, proxy/limits/mounts/skills — is
+# inherited from the `agent-base` service via `extends`.
 #
 #   cp -r examples/child-image /tmp/my-agent && cd /tmp/my-agent
-#   /path/to/agent-base/scripts/compose.sh \
-#       --service example-cli \
-#       --fragments /path/to/agent-base/compose \
-#       --file docker-compose.yml -- up -d --build
+#   docker compose -f container/docker-compose.yml up -d --build
 #
-# A real child repo wraps that command in its own scripts/compose.sh so
-# callers just run `make up`.
+# Inside this repository the stacks under stacks/ work the same way.
 # =============================================================================
 
 services:

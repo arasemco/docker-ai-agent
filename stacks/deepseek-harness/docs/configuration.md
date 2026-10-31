@@ -20,7 +20,7 @@ Everything is optional; the defaults work with no configuration.
 
 The sandbox has its own switches (`AGENT_DOCKERD`, `AGENT_HEALTHCHECK`,
 `AGENT_CPUS`, `AGENT_SKILLS_HOST`, proxy variables…), documented in
-[agent-base's configuration reference](../../agent-base/docs/configuration.md).
+[agent-base's configuration reference](../../../docs/configuration.md).
 
 ## Host networking
 

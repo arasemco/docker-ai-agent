@@ -1,7 +1,7 @@
 # opencode documentation
 
 This repository packages the [OpenCode](https://opencode.ai) CLI and Web UI as a
-container on top of [agent-base](../../agent-base/docs/index.md). agent-base owns
+container on top of [agent-base](../../../docs/index.md). agent-base owns
 the sandbox — Debian base, agent user, s6 supervision, rootless Docker daemon,
 toolchain, entrypoint, healthcheck — and this repository owns exactly one thing:
 OpenCode.
@@ -13,7 +13,7 @@ OpenCode.
 | [configuration.md](configuration.md) | which variables exist, where state lives, how providers are configured |
 | [troubleshooting.md](troubleshooting.md) | the UI is unreachable, unhealthy, 401, config not applied, daemon missing |
 
-Working on the repository rather than running it? [`.agents/README.md`](../.agents/README.md)
+Working on the repository rather than running it? [`.agents/README.md`](../../../.agents/README.md)
 has the map, invariants and checks.
 
 ## The short version

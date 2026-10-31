@@ -1,7 +1,7 @@
 # =============================================================================
 # compose/proxy.yml — outbound proxy, as an opt-in fragment
 # =============================================================================
-#   scripts/compose.sh --with daemon,proxy -- up -d
+#   docker compose --profile opencode up -d
 #
 # Not part of base.yml: a proxy URL is deployment-specific, and empty
 # pass-throughs in the base would set HTTP_PROXY="" in every container.

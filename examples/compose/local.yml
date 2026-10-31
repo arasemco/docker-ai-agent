@@ -1,8 +1,7 @@
 # =============================================================================
 # Example: a machine-specific compose/local.yml
 # =============================================================================
-# Copy to compose/local.yml (gitignored). scripts/compose.sh appends it to every
-# invocation, so it needs no flag. It is the place for a deployment's own
+# Copy to compose/local.yml (gitignored) and pass it explicitly with -f. It is the place for a deployment's own
 # binds: source trees, read-only shares, a directory that replaces a fragment's
 # volume.
 #

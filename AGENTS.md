@@ -13,8 +13,8 @@ that matches the job (`work-on-the-image`, `compose-fragments`,
 
 ## Hard rules
 
-1. Do not add a CLI, framework or agent-specific code to this repository. Child
-   images (`FROM agent-base`) add their own.
+1. The base image contains no CLI: an agent stack lives under `stacks/<name>/`
+   and builds `FROM agent-base`.
 2. Do not end a Dockerfile with `USER 1000:1000`; `/init` must be PID 1 as root.
 3. No host-specific values in the core: no IPs, hostnames, registry paths or
    personal directories outside `examples/`.

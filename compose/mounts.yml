@@ -4,7 +4,7 @@
 # One fragment, one concern: a host directory for the agent to work in. Without
 # it the workspace is just a directory inside the container (ephemeral).
 #
-#   AGENT_WORKSPACE_HOST=~/src/acme scripts/compose.sh --with daemon,mounts -- up -d
+#   AGENT_WORKSPACE_HOST=~/src/acme docker compose --profile opencode up -d
 #
 # The default is ./workspace under the directory you run compose from — a plain,
 # generic location rather than a particular home layout. Set

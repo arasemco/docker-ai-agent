@@ -1,7 +1,7 @@
 # =============================================================================
 # compose/limits.yml — CPU/memory limits, as an opt-in fragment
 # =============================================================================
-#   AGENT_CPUS=4 AGENT_MEMORY=8G scripts/compose.sh --with daemon,limits -- up -d
+#   AGENT_CPUS=4 AGENT_MEMORY=8G docker compose --profile opencode up -d
 #
 # Defaults are modest on purpose: a shared base cannot assume the size of the
 # machine it runs on. Set AGENT_CPUS / AGENT_MEMORY for the deployment.

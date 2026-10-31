@@ -1,10 +1,9 @@
 .idea
 
-# Local, machine-specific values (proxy, paths, limits) — see README#overrides.
+# Local, machine-specific values — see examples/.
 .env
 .env.local
 compose/local.yml
 data/
-# Default bind sources of the `mounts` and `skills` fragments.
 workspace/
 skills/

@@ -93,9 +93,21 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ steps.vars.outputs.is_github_hosted == 'true' && secrets.GITHUB_TOKEN || secrets.GIT_TOKEN }}
 
-      # Builds the default group (agent-base) and pushes on push/tag; on PRs
-      # it builds only, so a broken Dockerfile still fails the check.
-      - name: Build and push (docker buildx bake)
+      # The stacks build FROM the base image, so the two bakes run in order: the
+      # base first, then the stacks against the tag it just produced.
+      - name: Build and push base image
+        uses: docker/bake-action@v7
+        with:
+          push: ${{ github.event_name != 'pull_request' }}
+        env:
+          REGISTRY: ${{ steps.vars.outputs.registry }}
+          SOURCE_URL: ${{ steps.vars.outputs.source_url }}
+          GIT_SHA: ${{ steps.vars.outputs.git_sha }}
+          GIT_REF: ${{ steps.vars.outputs.git_ref }}
+          CACHE_WRITE: ${{ github.event_name != 'pull_request' }}
+          CACHE_READ: "true"
+
+      - name: Build and push stacks (docker buildx bake)
         uses: docker/bake-action@v7
         with:
           push: ${{ github.event_name != 'pull_request' }}
@@ -109,3 +121,4 @@ jobs:
           # rights, so pull requests build read-only instead of publishing a cache
           # produced by unmerged code.
           CACHE_WRITE: ${{ github.event_name != 'pull_request' }}
+          CACHE_READ: "true"

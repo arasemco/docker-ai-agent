@@ -9,14 +9,21 @@ the toolchain agents expect. It ships no agent — child images add their own CL
 | Document | What it answers |
 |---|---|
 | [architecture.md](architecture.md) | What is inside the image? How does it boot? Who runs what? |
-| [compose.md](compose.md) | How do the compose fragments fit together? How does a child stack use them? |
+| [compose.md](compose.md) | How do the fragments, profiles and stack services fit together? |
 | [configuration.md](configuration.md) | Every environment variable, volume, path and hook. |
 | [build.md](build.md) | Building, tagging, publishing, and where the OCI metadata comes from. |
 | [troubleshooting.md](troubleshooting.md) | The failures worth knowing before they happen. |
 
-Working on the repository itself (rather than using the image)?
+Working on the repository itself (rather than using an image)?
 [start here](../.agents/README.md) — the map, invariants and checks a coding agent
 needs.
+
+Each stack has its own documentation next to its image:
+
+| Stack | Documentation |
+|---|---|
+| OpenCode | [stacks/opencode/docs/index.md](../stacks/opencode/docs/index.md) |
+| DeepSeek Harness | [stacks/deepseek-harness/docs/index.md](../stacks/deepseek-harness/docs/index.md) |
 
 ## The one-paragraph version
 
@@ -25,8 +32,8 @@ uid/gid 1000, docker-ce rootless, Python/uv/yq and a build toolchain. `s6-overla
 is PID 1 and runs two longruns: `dockerd` (announces readiness when the API
 answers) and `agent` (waits for that, then execs `$AGENT_CMD`). Compose is a set
 of per-concern fragments in `compose/`; the root `docker-compose.yml` includes
-the default three, and `scripts/compose.sh` assembles other combinations or
-renames the service for a child stack. A child image only needs `FROM`,
+the fragments and every stack service; `docker compose --profile <name>` selects
+which stack runs. A child image only needs `FROM`,
 its CLI, and `ENV AGENT_CMD`.
 
 ## Conventions used throughout

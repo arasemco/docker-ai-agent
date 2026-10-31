@@ -1,39 +1,131 @@
 # =============================================================================
-# agent-base — minimal working stack
+# ai/agent — one project, one base image, one stack per agent CLI
 # =============================================================================
-# `docker compose up -d --build` builds the image and starts it with the s6
-# services and an inner Docker daemon. The included fragments are the same ones
-# scripts/compose.sh can combine differently; nothing is duplicated:
+# The base image is built from image/. Every agent stack (opencode, dsh, and
+# eventually claude-code) builds on top of it from stacks/, and its service is
+# defined below next to the others.
 #
-#   compose/base.yml    service skeleton + AGENT_* toggles
-#   compose/daemon.yml  devices/seccomp + the daemon's data volume
-#   compose/image.yml   build image/ (the default command is set below)
+# Pick what to run with a profile:
 #
-# Want proxy, limits or a host-mounted workspace? Add the matching fragment
-# instead of editing this file:
+#   docker compose --profile opencode up -d --build  # OpenCode Web UI
+#   docker compose --profile dsh up -d --build       # dsh Web UI (host network)
+#   make up PROFILE=opencode
 #
-#   make up WITH=daemon,proxy,limits,mounts
-#   # or: scripts/compose.sh --with daemon,proxy,limits,mounts \
-#   #       --file compose/image.yml -- up -d --build
+# The fragments in compose/ are included, not copied:
 #
-#   docker compose exec --user 1000 agent-base bash
+#   base.yml     service skeleton + AGENT_* toggles
+#   daemon.yml   /dev/fuse, /dev/net/tun, seccomp exceptions, agent-docker volume
+#   image.yml    build of image/ for the `base` profile
+#   proxy.yml    outbound proxy pass-through (values from .env, empty by default)
+#   limits.yml   CPU/memory from AGENT_CPUS / AGENT_MEMORY
+#   mounts.yml   workspace bind from AGENT_WORKSPACE_HOST (default ./workspace)
+#   skills.yml   shared Agent Skills root from AGENT_SKILLS_HOST (default ./skills)
+#
+# Every stack service `extends: agent-base`, so it inherits the whole sandbox
+# without repeating a single device or environment entry.
 # =============================================================================
 
-name: agent-base
+name: agent
 
 include:
   - compose/base.yml
   - compose/daemon.yml
   - compose/image.yml
+  - compose/proxy.yml
+  - compose/limits.yml
+  - compose/mounts.yml
+  - compose/skills.yml
 
 services:
+  # The sandbox on its own. Compose merges a profile through `extends`, so this
+  # profile also selects every stack that extends the service: `--profile all`
+  # means "sandbox and all stacks". Use a stack profile to run just one.
   agent-base:
-    # This image ships no agent CLI, so its default command is a shell — which
-    # exits at once without a TTY. The default stack is therefore a sandbox
-    # that stays up for `docker compose exec`; a child image replaces this with
-    # its own command.
+    profiles: ["all"]
+    # This image ships no agent CLI, so its default command is a shell, which
+    # would exit immediately without a TTY. Keep it up for `docker compose exec`.
     command: ["-lc", "sleep infinity"]
 
-# No volumes block here: each fragment declares the volume it mounts
-# (daemon.yml -> agent-docker, image.yml -> agent-workspace), so include and -f
-# both work without the composing file knowing about them.
+  # ---------------------------------------------------------------------------
+  # OpenCode — Web UI on a published loopback port.
+  # ---------------------------------------------------------------------------
+  opencode:
+    extends:
+      service: agent-base
+    profiles: ["opencode"]
+    image: ${OPENCODE_IMAGE:-opencode:local}
+    pull_policy: build
+    build:
+      context: ./stacks/opencode/image
+      dockerfile: Dockerfile
+      # The inherited sandbox build targets its own stage; each stack names its
+      # stage so the two do not leak into each other.
+      target: opencode
+      args:
+        AGENT_BASE: ${AGENT_BASE:-agent-base:1.4.1}
+        OPENCODE_VERSION: ${OPENCODE_VERSION:-1.19.5}
+    hostname: opencode
+    # --hostname 0.0.0.0 makes the published port reachable inside the container;
+    # exposure is controlled by the binding below.
+    command: ["web", "--port", "${OPENCODE_PORT:-4096}", "--hostname", "0.0.0.0"]
+    ports:
+      # Loopback by default: the password has a weak fallback. Set
+      # OPENCODE_BIND_IP=0.0.0.0 to publish on the LAN.
+      - "${OPENCODE_BIND_IP:-127.0.0.1}:${OPENCODE_PORT:-4096}:${OPENCODE_PORT:-4096}"
+    environment:
+      - OPENCODE_SERVER_PASSWORD=${OPENCODE_SERVER_PASSWORD:-changeme123}
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+      - GEMINI_API_KEY=${GEMINI_API_KEY:-}
+      - OLLAMA_BASE_URL=${OLLAMA_BASE_URL:-}
+      - OLLAMA_API_KEY=${OLLAMA_API_KEY:-}
+    volumes:
+      # Named volumes inherit the agent user's ownership from the image; point a
+      # *_HOST variable at a host path (uid 1000) to bind instead.
+      - ${OPENCODE_CONFIG_HOST:-opencode-config}:/home/agent/.config/opencode
+      - ${OPENCODE_DATA_HOST:-opencode-data}:/home/agent/.local/share/opencode
+      - ${OPENCODE_STATE_HOST:-opencode-state}:/home/agent/.local/state/opencode
+
+  # ---------------------------------------------------------------------------
+  # dsh (DeepSeek Harness) — loopback-only UI, reached through host networking.
+  # ---------------------------------------------------------------------------
+  # dsh's web server binds 127.0.0.1 and refuses wildcard addresses, because it
+  # would expose remote code execution to the network. A container's loopback is
+  # its own, so a published port forwards to an address nothing listens on. With
+  # host networking the container's 127.0.0.1 is the host's, and the UI answers at
+  # http://localhost:3080 with the same loopback-only exposure dsh intends.
+  # Linux-only; on Docker Desktop run dsh on the host instead.
+  dsh:
+    extends:
+      service: agent-base
+    profiles: ["dsh"]
+    image: ${DSH_IMAGE:-dsh:local}
+    pull_policy: build
+    build:
+      context: ./stacks/deepseek-harness/image
+      dockerfile: Dockerfile
+      # "test" needs a BuildKit secret; only the bake target produces it.
+      target: runtime
+      args:
+        AGENT_BASE: ${AGENT_BASE:-agent-base:1.4.1}
+        DSH_VERSION: ${DSH_VERSION:-0.2.1-rc.5}
+        NODE_REF: ${NODE_REF:-docker.io/library/node:22-bookworm-slim@sha256:4b150b48b4116e2a22f2c39cc27025fbf4f153e2078fd3b14d159fdb5c7279da}
+    network_mode: host
+    command: ["web"]
+    environment:
+      - DSH_PORT=${DSH_PORT:-3080}
+      - DSH_WORKSPACE=/home/agent/workspace
+      - DSH_TRUSTED_HOSTS=${DSH_TRUSTED_HOSTS:-}
+      - DSH_DOCKERD=${DSH_DOCKERD:-1}
+    volumes:
+      # Profiles, credentials (DeepSeek API key from Settings -> Models) and
+      # session history.
+      - ${DSH_HOME_HOST:-dsh-home}:/home/agent/.dsh
+
+volumes:
+  # Declared by the fragments and services that mount them; listed for readers.
+  agent-docker:
+  opencode-config:
+  opencode-data:
+  opencode-state:
+  dsh-home:

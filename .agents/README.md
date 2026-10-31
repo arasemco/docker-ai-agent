@@ -27,8 +27,9 @@ agent CLI in this repository, and there should never be one.
 | `image/Dockerfile` | the image: base, packages, user, s6, entrypoint wiring | yes, but check pinned digests |
 | `image/rootfs/` | files copied into the image (entrypoint, services, cont-init, hooks dir) | yes |
 | `compose/*.yml` | one fragment per concern, keyed `agent-base` | yes, keep them single-purpose |
-| `docker-compose.yml` | default stack: `include:` of base + daemon + image | yes, keep generic |
-| `scripts/compose.sh` | fragment assembler and service renamer | carefully |
+| `stacks/<name>/image/` | one agent CLI layer per stack (Dockerfile + files) | yes |
+| `stacks/<name>/docs/`, `examples/` | stack-specific documentation and starting points | yes |
+| `docker-compose.yml` | includes every fragment and defines one service per stack with a profile | yes |
 | `scripts/bake.sh` | provenance derivation + `docker buildx bake` | carefully |
 | `scripts/smoke.sh` | runtime validation | yes |
 | `docker-bake.hcl` | targets, pinned versions, OCI labels | yes |
@@ -66,9 +67,13 @@ version matters.
 restart policy. Add it to the `test` stage's shellcheck list in the Dockerfile.
 
 **Add a compose feature.** New file in `compose/`, keyed `agent-base`, owning one
-concern, declaring any volume it mounts. Register it in `scripts/compose.sh`'s
-fragment ordering (`base daemon proxy limits mounts`) and document it in
-`docs/compose.md` and the README table.
+concern, declaring any volume it mounts, and included from
+`docker-compose.yml`. Document it in `docs/compose.md` and the README table.
+
+**Add a stack.** `stacks/<name>/image/` with its Dockerfile, a service in
+`docker-compose.yml` with `extends: {service: agent-base}` and
+`profiles: ["<name>"]`, a target in `docker-bake.hcl`, and `PROFILE` support in
+`makefile`/`scripts/smoke.sh`.
 
 **Change a default.** Update the image `ENV`, the fragment that passes it, and
 the table in `docs/configuration.md` — in the same commit.
@@ -81,7 +86,7 @@ shellcheck image/rootfs/usr/local/bin/* image/rootfs/usr/local/lib/agent-base/*.
            image/rootfs/etc/services.d/*/run image/rootfs/etc/services.d/*/finish
 scripts/bake.sh test          # image builds; shellcheck + tool matrix inside
 make smoke                    # real container: services, health, tools
-docker compose config >/dev/null && scripts/compose.sh --with daemon,proxy,limits,mounts --file compose/image.yml -- config >/dev/null
+for p in base opencode dsh; do docker compose --profile "$p" config >/dev/null; done
 ```
 
 `make smoke` waits for the inner daemon and proves storage with an offline

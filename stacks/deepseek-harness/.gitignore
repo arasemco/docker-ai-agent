@@ -1,8 +1,0 @@
-.idea
-
-# Local, machine-specific values — see examples/.
-.env
-.env.local
-compose/local.yml
-data/
-workspace/

@@ -5,8 +5,8 @@
 # args. The command, the service skeleton, devices, proxy, limits and mounts
 # belong to the other fragments, so this one is identical in every combination.
 #
-#   docker compose up -d --build     # root docker-compose.yml (base+daemon+this)
-#   make up WITH=daemon,proxy        # scripts/compose.sh with more fragments
+#   docker compose --profile opencode up -d --build   # a stack on top of it
+#   docker compose --profile opencode up -d       # a stack on top of it
 # =============================================================================
 
 # The stack file is the first --file, so its directory decides compose's
@@ -19,9 +19,9 @@ services:
     image: ${AGENT_IMAGE:-agent-base:local}
     pull_policy: build
     build:
-      # Relative to THIS file's directory (compose/): compose resolves paths in
-      # an included or extended fragment against the fragment, and
-      # scripts/compose.sh anchors --project-directory the same way.
+      # Relative to this file's directory (compose/): compose resolves paths in
+      # an included fragment against that fragment, not against the repository
+      # root.
       context: ../image
       dockerfile: Dockerfile
       target: agent-base
@@ -33,5 +33,5 @@ services:
         UV_VERSION: ${UV_VERSION:-0.13.6}
     # No command and no mounts here: what the container runs and where its
     # workspace lives are decisions for the composing stack (the root
-    # docker-compose.yml, compose/harness.yml, or the child image). With no
+    # docker-compose.yml, or the stack that extends this service). With no
     # command the image's own default applies — a shell as AGENT_USER.

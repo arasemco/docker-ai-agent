@@ -61,7 +61,7 @@ The image creates `/home/agent/.agents/skills` owned by the agent user. The
 every agent container:
 
 ```bash
-AGENT_SKILLS_HOST=~/skills scripts/compose.sh --with daemon,skills -- up -d
+AGENT_SKILLS_HOST=~/skills docker compose --profile opencode up -d
 ```
 
 Read-only is deliberate: a skill may execute its scripts, but it should not

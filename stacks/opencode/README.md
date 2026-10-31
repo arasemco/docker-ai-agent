@@ -1,7 +1,7 @@
 # opencode
 
 The [OpenCode](https://opencode.ai) CLI and Web UI in a container, built on
-[agent-base](../agent-base/README.md): an s6-supervised sandbox with a rootless
+[agent-base](../../README.md): an s6-supervised sandbox with a rootless
 Docker daemon, a development toolchain and persistent state.
 
 This repository owns only OpenCode. The sandbox — Debian base, the `agent` user,
@@ -58,7 +58,7 @@ config from [examples/config/opencode.jsonc](examples/config/opencode.jsonc).
 | [docs/index.md](docs/index.md) | overview and reading order |
 | [docs/configuration.md](docs/configuration.md) | every variable, volume and provider option |
 | [docs/troubleshooting.md](docs/troubleshooting.md) | UI unreachable, 401, unhealthy, daemon missing |
-| [.agents/README.md](.agents/README.md) | working on this repository: map, invariants, checks |
+| [.agents/README.md](../../.agents/README.md) | working on this repository: map, invariants, checks |
 
 ## Layout
 

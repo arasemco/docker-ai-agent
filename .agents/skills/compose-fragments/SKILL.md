@@ -39,7 +39,7 @@ name `agent-base`. A composing file chooses which fragments to merge.
 
 ```bash
 docker compose up -d                      # root file: include base + daemon + image
-scripts/compose.sh --with daemon,proxy -- up -d
+docker compose --profile opencode up -d
 make up WITH=daemon,limits,mounts
 ```
 

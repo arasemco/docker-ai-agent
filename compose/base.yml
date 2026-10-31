@@ -6,8 +6,9 @@
 # their own file (see the others in this directory, or ../docker-compose.yml
 # for the default combination).
 #
-# Loaded either by include (root docker-compose.yml) or by scripts/compose.sh
-# (-f). Both rely on every fragment keying the same canonical service name.
+# Included by the root docker-compose.yml, together with the other fragments.
+# Every fragment keys the same canonical service name so the include merges them
+# into one `agent-base` service that the stacks extend.
 # =============================================================================
 
 services:

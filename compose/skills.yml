@@ -4,7 +4,7 @@
 # One fragment, one concern: the global Agent Skills root, mounted from the
 # host so every agent container sees the same set.
 #
-#   AGENT_SKILLS_HOST=~/skills scripts/compose.sh --with daemon,skills -- up -d
+#   AGENT_SKILLS_HOST=~/skills docker compose --profile opencode up -d
 #
 # Skills are directories holding a SKILL.md plus optional scripts and resources;
 # an agent-compatible CLI discovers them under ~/.agents/skills (and its own

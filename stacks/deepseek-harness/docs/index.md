@@ -1,7 +1,7 @@
 # dsh documentation
 
 This repository packages the [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness)
-(`dsh`) Web UI as a container on top of [agent-base](../../agent-base/docs/index.md).
+(`dsh`) Web UI as a container on top of [agent-base](../../../docs/index.md).
 agent-base owns the sandbox — Debian base, agent user, s6 supervision, rootless
 Docker daemon, toolchain, entrypoint, hooks and healthcheck. This repository
 owns dsh: Node 22, the CLI, its flag translation and its healthcheck.
@@ -13,7 +13,7 @@ owns dsh: Node 22, the CLI, its flag translation and its healthcheck.
 | [configuration.md](configuration.md) | variables, host networking, credentials, where state lives |
 | [troubleshooting.md](troubleshooting.md) | UI unreachable, healthcheck failing, 401, daemon, credentials |
 
-Working on the repository instead of running it? [`.agents/README.md`](../.agents/README.md)
+Working on the repository instead of running it? [`.agents/README.md`](../../../.agents/README.md)
 has the map, invariants and checks.
 
 ## The short version

@@ -12,7 +12,7 @@ metadata:
 
 ```bash
 docker compose up -d --build                 # default stack (base + daemon + image)
-scripts/compose.sh --with daemon,proxy -- up -d
+docker compose --profile opencode up -d
 make up WITH=daemon,limits,mounts
 docker compose exec --user 1000 agent-base bash    # agent's shell (exec is root)
 ```
