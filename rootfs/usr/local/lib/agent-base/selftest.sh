@@ -53,6 +53,7 @@ node:node --version
 npm:npm --version
 python3:python3 --version
 uv:uv --version
+uvx:uvx --version
 yq:yq --version
 docker:docker --version
 rg:rg --version

@@ -15,8 +15,9 @@ What it provides:
   inside the container without `--privileged`.
 - **Python 3 + uv, yq, git/gh, a native build toolchain**, the GNU userland and
   the CLI utilities agents assume are installed. Everything userland-facing
-  comes from `apt`; `yq` is therefore Debian's package (kislyuk's 3.x, a jq
-  wrapper — not mikefarah's v4, which Debian doesn't ship).
+  comes from a package manager: `yq` from Debian (kislyuk's 3.x, a jq wrapper —
+  not mikefarah's v4, which Debian doesn't ship), `uv` from PyPI via `pipx`
+  (Debian has no `uv` package in any suite).
 - **A generic entrypoint** with a hook directory, and a healthcheck.
 
 It deliberately contains **no agent CLI**. Each child image installs its own

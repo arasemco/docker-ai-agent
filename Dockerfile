@@ -46,7 +46,7 @@ ARG AGENT_GID=1000
 # Debian repo (`apt-cache madison docker-ce`).
 ARG DOCKER_VERSION=29.8.1
 
-# uv (Python toolchain), installed from a pinned release.
+# uv (Python toolchain), installed from PyPI at this exact version.
 ARG UV_VERSION=0.13.6
 
 USER root
@@ -119,6 +119,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
         python3 \
         python3-pip \
         python3-venv \
+        pipx \
         unzip \
     && rm -rf /var/lib/apt/lists/*
 
@@ -169,11 +170,17 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/* \
     && ln -sf /usr/bin/fdfind /usr/local/bin/fd
 
-# uv: pinned installer release rather than the floating install.sh default.
-ENV UV_INSTALL_DIR=/usr/local/bin
+# uv comes from PyPI at a pinned version, installed by pipx — itself an apt
+# package. Debian has no `uv` package in any suite (checked bookworm, trixie
+# and sid), and PyPI is the only package-managed source, so this replaces the
+# official `curl astral.sh | sh` installer. PIPX_HOME/PIPX_BIN_DIR keep pipx's
+# venv out of a user's home, so `uv` and `uvx` land in /usr/local/bin for the
+# agent user instead of root's ~/.local/bin.
 ENV UV_LINK_MODE=copy
-RUN curl -fsSL "https://astral.sh/uv/${UV_VERSION}/install.sh" | sh \
-    && uv --version
+RUN PIPX_HOME=/opt/pipx PIPX_BIN_DIR=/usr/local/bin \
+    pipx install "uv==${UV_VERSION}" \
+    && uv --version \
+    && uvx --version
 
 # Rootless Docker Engine: dockerd + CLI plugins pinned to DOCKER_VERSION,
 # docker-ce-rootless-extras for dockerd-rootless.sh/rootlesskit, plus the
