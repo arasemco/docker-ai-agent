@@ -1,127 +1,64 @@
-ARG DOCKER_VERSION=29.8.1
-FROM docker:${DOCKER_VERSION}-dind-rootless
+# syntax=docker/dockerfile:1
+# =============================================================================
+# opencode — the OpenCode CLI/Web UI on top of agent-base
+# =============================================================================
+# Everything shared (Debian + Node/npm, the agent user, rootless Docker, the
+# toolchain, the entrypoint and healthcheck) comes from agent-base. This file
+# adds only what is OpenCode-specific:
+#
+#   * the opencode-ai package from npm, pinned to an exact version
+#   * the seeded provider config (Ollama, see opencode.jsonc)
+#   * AGENT_CMD=opencode, so the base entrypoint exec's it with the args from
+#     docker-compose.yml (`web --port ... --hostname 0.0.0.0`)
+#
+# Build:
+#   docker compose up -d --build
+#   bash bake.sh            # or via bake, tagged ${REGISTRY}/opencode
+# =============================================================================
 
-ARG OPENCODE_USER=opencode
-ARG OPENCODE_UID=1000
-ARG OPENCODE_GID=1000
+# Pinned to a registry tag, not :latest, so a rebuild is reproducible. Bump
+# deliberately (and retest) when agent-base changes.
+ARG AGENT_BASE=git.omesa.net/asemo/agent-base:1.0.0
+FROM ${AGENT_BASE}
+
+# Exact opencode-ai version (`npm view opencode-ai versions`); a dist-tag
+# would float. 1.19.5 is npm's current "latest".
 ARG OPENCODE_VERSION=1.19.5
 
 USER root
 
-# Ensure libgcc and libstdc++ are present for musl binaries
-RUN apk add --no-cache shadow libgcc libstdc++ \
-    && existing_group="$(getent group "${OPENCODE_GID}" | cut -d: -f1)" \
-    && if [ -n "${existing_group}" ] && [ "${existing_group}" != "${OPENCODE_USER}" ]; then \
-        groupmod --new-name "${OPENCODE_USER}" "${existing_group}"; \
-    elif [ -z "${existing_group}" ]; then \
-        groupadd --gid "${OPENCODE_GID}" "${OPENCODE_USER}"; \
-    fi \
-    && existing_user="$(getent passwd "${OPENCODE_UID}" | cut -d: -f1)" \
-    && if [ -n "${existing_user}" ] && [ "${existing_user}" != "${OPENCODE_USER}" ]; then \
-        usermod --login "${OPENCODE_USER}" --gid "${OPENCODE_GID}" --home "/home/${OPENCODE_USER}" --move-home --shell /bin/bash "${existing_user}"; \
-    elif [ -z "${existing_user}" ]; then \
-        useradd --uid "${OPENCODE_UID}" --gid "${OPENCODE_GID}" --create-home --shell /bin/bash "${OPENCODE_USER}"; \
-    fi
+# The official npm package (not the curl installer): it ships per-platform
+# binaries as optionalDependencies and a postinstall that links the right one.
+# Installed as root so it lands in /usr/local and is on the agent user's PATH.
+RUN --mount=type=cache,target=/root/.npm \
+    npm install --global --no-fund --no-audit --no-update-notifier "opencode-ai@${OPENCODE_VERSION}" \
+    && opencode --version
 
-RUN grep -q "^${OPENCODE_USER}:" /etc/subuid || echo "${OPENCODE_USER}:100000:65536" >> /etc/subuid \
-    && grep -q "^${OPENCODE_USER}:" /etc/subgid || echo "${OPENCODE_USER}:100000:65536" >> /etc/subgid
+# OpenCode's state directories must exist in the image already owned by the
+# agent user: a fresh named volume mounted on a path the image doesn't have
+# comes up root-owned, and opencode then dies with
+# "PermissionDenied: FileSystem.open (.../log/opencode.log)". install -d sets
+# the ownership explicitly (COPY would create missing parents as root).
+RUN install -d -o 1000 -g 1000 \
+        "/home/agent/.config/opencode" \
+        "/home/agent/.local/share/opencode" \
+        "/home/agent/.local/state/opencode" \
+        "/home/agent/.cache/opencode" \
+    # `opencode --version` above ran as root and already created log/repos
+    # inside ~/.local/share/opencode, so fix the whole tree, not just the tops.
+    && chown -R 1000:1000 "/home/agent/.local" "/home/agent/.config" "/home/agent/.cache"
 
-# Pre-create OpenCode's XDG directories with the right owner so named volumes
-# mounted here inherit user ownership instead of being created root-owned.
-RUN mkdir -p "/home/${OPENCODE_USER}/.local/share/opencode" \
-        "/home/${OPENCODE_USER}/.local/state/opencode" \
-        "/home/${OPENCODE_USER}/.cache/opencode" \
-        "/home/${OPENCODE_USER}/.config/opencode" \
-        "/home/${OPENCODE_USER}/workspace" \
-    && chown -R "${OPENCODE_USER}:${OPENCODE_USER}" "/home/${OPENCODE_USER}"
+# Default provider config, seeded into the config volume on first use. A
+# mounted volume hides this file once it has its own config, which is
+# intended: config is editable state, not an immutable default.
+COPY --chown=1000:1000 opencode.jsonc /home/agent/.config/opencode/opencode.jsonc
 
-# Default provider config (Ollama), seeded into the config volume on first use.
-COPY --chown=${OPENCODE_UID}:${OPENCODE_GID} opencode.jsonc /home/${OPENCODE_USER}/.config/opencode/opencode.jsonc
+# Back to the agent user: the CLI, the entrypoint's daemon and `docker exec`
+# default to this account (see agent-base's Dockerfile).
+USER 1000:1000
 
-# Common utilities and build packages
-RUN apk add --no-cache \
-        bash \
-        ca-certificates \
-        curl \
-        wget \
-        jq \
-        yq \
-        python3 \
-        py3-pip \
-        rsync \
-        git \
-        github-cli \
-        gnupg \
-        openssh-client \
-        procps \
-        nano \
-        nodejs \
-        npm \
-        shellcheck \
-        build-base \
-        linux-headers \
-        python3-dev \
-        cmake \
-        meson \
-        samurai \
-        pkgconf \
-        patch \
-        libffi-dev \
-        openssl-dev \
-        zlib-dev \
-        coreutils \
-        findutils \
-        grep \
-        sed \
-        gawk \
-        diffutils \
-        less \
-        file \
-        tree \
-        ripgrep \
-        fd \
-        tmux \
-        htop \
-        strace \
-        lsof \
-        bind-tools \
-        zip \
-        unzip \
-        xz \
-        zstd \
-        sqlite \
-        gettext-envsubst \
-        socat
+# The base entrypoint runs "$AGENT_CMD $@" for every command, so the compose
+# `command:` supplies the subcommand and flags.
+ENV AGENT_CMD=opencode
 
-ENV UV_INSTALL_DIR=/usr/local/bin
-RUN curl -fsSL https://astral.sh/uv/install.sh | sh
-
-USER ${OPENCODE_USER}
-ENV HOME=/home/${OPENCODE_USER} \
-    UV_LINK_MODE=copy
-WORKDIR ${HOME}/workspace
-
-# Install OpenCode official binary (pin with --build-arg OPENCODE_VERSION=x.y.z)
-ENV PATH="${HOME}/.opencode/bin:${HOME}/.local/bin:${PATH}"
-RUN if [ -n "${OPENCODE_VERSION}" ]; then \
-        curl -fsSL https://opencode.ai/install | bash -s -- --version "${OPENCODE_VERSION}"; \
-    else \
-        curl -fsSL https://opencode.ai/install | bash; \
-    fi \
-    && echo 'export PATH="$HOME/.opencode/bin:$HOME/.local/bin:$PATH"' >> "${HOME}/.bashrc" \
-    && echo 'export UV_LINK_MODE="copy"' >> "${HOME}/.bashrc"
-
-ENV XDG_RUNTIME_DIR="${HOME}/.docker/run"
-ENV DOCKER_HOST="unix://${HOME}/.docker/run/docker.sock"
-
-# Expose OpenCode's default Web UI port
 EXPOSE 4096
-
-HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
-    CMD opencode --version || exit 1
-
-COPY --chmod=755 docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
-ENTRYPOINT ["/usr/local/bin/docker-entrypoint.sh"]
-
-# Default to starting the Web UI
-CMD ["web", "--port", "4096", "--hostname", "0.0.0.0"]

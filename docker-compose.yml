@@ -1,66 +1,77 @@
+# =============================================================================
+# opencode stack — the OpenCode Web UI on agent-base
+# =============================================================================
+# The sandbox (rootless Docker, seccomp/devices, resource limits, proxy env,
+# Projects mount) comes from agent-base/compose.base.yml via `extends`. This
+# file adds only what is OpenCode-specific: the build, the published port, the
+# provider credentials and OpenCode's own state volumes.
+#
+#   cp .env.example .env && docker compose up -d --build
+#   http://127.0.0.1:4096
+# =============================================================================
+
 services:
   opencode:
+    extends:
+      file: ../agent-base/compose.base.yml
+      service: agent-base
+    image: ${OPENCODE_IMAGE:-opencode:local}
     pull_policy: build
     build:
       context: .
       dockerfile: Dockerfile
       args:
-        OPENCODE_UID: ${OPENCODE_UID:-1000}
-        OPENCODE_GID: ${OPENCODE_GID:-1000}
+        # Pin the shared base by tag; override AGENT_BASE to build against a
+        # newer agent-base without editing this file.
+        AGENT_BASE: ${AGENT_BASE:-git.omesa.net/asemo/agent-base:1.0.0}
         OPENCODE_VERSION: ${OPENCODE_VERSION:-1.19.5}
-        DOCKER_VERSION: ${DOCKER_VERSION:-29.8.1}
-    image: opencode:local
     hostname: opencode
-    init: true
-    stdin_open: true
-    tty: true
-    restart: no
     command: ["web", "--port", "${OPENCODE_PORT:-4096}", "--hostname", "0.0.0.0"]
     ports:
-      - "${OPENCODE_PORT:-4096}:${OPENCODE_PORT:-4096}"
-    runtime: runc
+      # Bound to loopback by default: the server password has a weak fallback
+      # (see .env.example), so publishing on 0.0.0.0 would expose the UI to
+      # the LAN. Set OPENCODE_BIND_IP=0.0.0.0 deliberately if you need that.
+      - "${OPENCODE_BIND_IP:-127.0.0.1}:${OPENCODE_PORT:-4096}:${OPENCODE_PORT:-4096}"
     environment:
-      # Protect your Web UI with a password
+      # Protect the Web UI with a password (HTTP basic auth).
       - OPENCODE_SERVER_PASSWORD=${OPENCODE_SERVER_PASSWORD:-changeme123}
-      # Plug in any provider key you want
+      # Provider keys; anything unset simply isn't offered by the UI.
       - MAMMOUTH_API_KEY=${MAMMOUTH_API_KEY:-}
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
       - OPENAI_API_KEY=${OPENAI_API_KEY:-}
-      # Local Ollama server (see opencode.jsonc)
+      # Local Ollama server (see opencode.jsonc). NO_PROXY in the inherited
+      # proxy block already keeps 192.168.1.48 off the Squid proxy.
       - OLLAMA_BASE_URL=${OLLAMA_BASE_URL:-http://192.168.1.48:11434/v1}
       - OLLAMA_API_KEY=${OLLAMA_API_KEY:-ollama}
-      # Route all outbound traffic through the Squid proxy
-      - HTTP_PROXY=${HTTP_PROXY:-http://192.168.1.48:3128}
-      - HTTPS_PROXY=${HTTPS_PROXY:-http://192.168.1.48:3128}
-      - ALL_PROXY=${ALL_PROXY:-http://192.168.1.48:3128}
-      - NO_PROXY=${NO_PROXY:-localhost,127.0.0.1,::1,192.168.1.48}
-      - http_proxy=${http_proxy:-http://192.168.1.48:3128}
-      - https_proxy=${https_proxy:-http://192.168.1.48:3128}
-      - all_proxy=${all_proxy:-http://192.168.1.48:3128}
-      - no_proxy=${no_proxy:-localhost,127.0.0.1,::1,192.168.1.48}
     volumes:
-      # Persistent OpenCode state. These default to Docker-managed volumes so
-      # the directories are created with the right owner; point the *_HOST
-      # variables at an existing host path (owned by OPENCODE_UID) to bind.
-      # data holds auth.json, the session DB and snapshots.
-      - ${OPENCODE_CONFIG_HOST:-opencode-config}:/home/opencode/.config/opencode
-      - ${OPENCODE_DATA_HOST:-opencode-data}:/home/opencode/.local/share/opencode
-      - ${OPENCODE_STATE_HOST:-opencode-state}:/home/opencode/.local/state/opencode
-      - ${HOME}/stacks/000-templates:/home/opencode/stacks/000-templates
-      - ${HOME}/Projects:/home/opencode/Projects
-    security_opt:
-      - seccomp:unconfined
-      - systempaths=unconfined
-    devices:
-      - /dev/fuse
-      - /dev/net/tun
-    deploy:
-      resources:
-        limits:
-          cpus: "8"
-          memory: 32G
+      # OpenCode state. Named volumes by default so the directories are created
+      # with the agent user's ownership; point the *_HOST variables at an
+      # existing host path (owned by uid 1000) to bind instead.
+      #   config -> providers/models (seeded from the image on first use)
+      #   data   -> auth.json, session DB, snapshots
+      #   state  -> XDG state
+      - ${OPENCODE_CONFIG_HOST:-opencode-config}:/home/agent/.config/opencode
+      - ${OPENCODE_DATA_HOST:-opencode-data}:/home/agent/.local/share/opencode
+      - ${OPENCODE_STATE_HOST:-opencode-state}:/home/agent/.local/state/opencode
+      # Host trees, same layout as the sibling stacks. Projects comes from
+      # compose.base.yml; stacks are read-only except the shared templates.
+      # They are added here rather than in the base so the shared file makes no
+      # assumption that ~/stacks exists on a given host.
+      - ${HOME}/stacks:/home/agent/stacks:ro
+      - ${HOME}/stacks/000-templates:/home/agent/stacks/000-templates:rw
 
 volumes:
+  # Declared by the consuming project; `extends` does not carry top-level
+  # volume declarations across files. Compose prefixes each with the project
+  # name, so this is "opencode_agent-docker" and cannot collide with the same
+  # volume in another stack. Set AGENT_DOCKER_VOLUME to override the name (and
+  # declare that name instead if you do).
+  agent-docker:
+  # Only used when AGENT_PROJECTS_HOST names a volume instead of a host path
+  # (compose treats a non-absolute source as a named volume). Handy on hosts
+  # where the outer Docker is rootless and bind mounts appear root-owned, and
+  # for throwaway test stacks.
+  agent-projects:
   opencode-config:
   opencode-data:
   opencode-state:
