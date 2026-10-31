@@ -190,7 +190,7 @@ the container, so uid 1000 cannot write them.
 | [docs/configuration.md](docs/configuration.md) | every variable, volume, path and hook |
 | [docs/build.md](docs/build.md) | build, provenance, publishing, versioning |
 | [docs/troubleshooting.md](docs/troubleshooting.md) | known failure modes |
-| [agent/README.md](agent/README.md) | working on this repository (map, invariants, checks) |
+| [.agents/README.md](.agents/README.md) | working on this repository (map, invariants, checks) |
 
 ## Layout
 

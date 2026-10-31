@@ -15,7 +15,7 @@ the toolchain agents expect. It ships no agent — child images add their own CL
 | [troubleshooting.md](troubleshooting.md) | The failures worth knowing before they happen. |
 
 Working on the repository itself (rather than using the image)?
-[start here](../agent/README.md) — the map, invariants and checks a coding agent
+[start here](../.agents/README.md) — the map, invariants and checks a coding agent
 needs.
 
 ## The one-paragraph version

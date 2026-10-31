@@ -2,7 +2,7 @@
 
 Instructions for AI coding agents working in this repository.
 
-**Read [`agent/README.md`](agent/README.md) first** — it has the repository map,
+**Read [`.agents/README.md`](.agents/README.md) first** — it has the repository map,
 the invariants that are easy to break, and the checks to run. User-facing
 documentation lives in [`docs/`](docs/index.md); this file is only the short
 version.
