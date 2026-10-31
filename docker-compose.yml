@@ -1,102 +1,54 @@
-# Run the DeepSeek Harness (dsh) Web UI. Image is built with buildx bake
-# (see docker-bake.hcl / bake.sh), not compose build:
-#   bash bake.sh                # builds the "dsh" image (default group)
-#   bash bake.sh --push         # ...and pushes it to REGISTRY
-#   docker compose up dsh       # run it
-#
 # =============================================================================
-# WHY network_mode: host (read this before changing it)
+# dsh — the DeepSeek Harness Web UI on agent-base
 # =============================================================================
-# dsh's own web-app flag parser refuses `--host 0.0.0.0` outright — "it
-# would expose remote code execution to the network; use 127.0.0.1 instead"
-# (packages/bundle/web-app/src/startup.ts, see upstream SAFETY.md). It binds
-# 127.0.0.1 by default and this image does not override that.
+# The sandbox (service skeleton, devices and seccomp for the inner daemon,
+# optional proxy, limits, mounts and skills) is assembled from agent-base's
+# compose fragments by scripts/compose.sh. This file carries only what is
+# dsh-specific: the build, host networking, credentials and the DSH_* variables.
 #
-# A container's loopback interface is its OWN — it is not the same 127.0.0.1
-# as the Docker host's, so on the default bridge network, `docker run -p
-# 3080:3080` publishes nothing (docker-proxy forwards to the container's
-# routable IP:port, and nothing is listening there — the process is only on
-# 127.0.0.1 inside the container's own namespace). That is the correct,
-# intended behavior here, not a bug to route around.
+# WHY network_mode: host
+#   dsh's web server binds 127.0.0.1 and refuses wildcard addresses, because it
+#   exposes remote code execution to whoever can reach it. A container's loopback
+#   is its own, so a published port forwards to an address nothing listens on.
+#   With host networking the container's 127.0.0.1 is the host's 127.0.0.1, and
+#   the UI answers at http://localhost:3080 exactly as if dsh ran on the host —
+#   still loopback-only, not exposed to the LAN. Host networking is not available
+#   on Docker Desktop for macOS/Windows; run dsh on the host there instead.
 #
-# `network_mode: host` makes the container share the host's network
-# namespace, so the container's 127.0.0.1:3080 IS the host's 127.0.0.1:3080
-# — the UI becomes reachable at http://localhost:3080 on the machine running
-# Docker, exactly as if you'd run `dsh web` there directly, with the same
-# loopback-only exposure upstream intends. It does NOT expose the UI to your
-# LAN or the internet — nothing does, by design, short of removing dsh's own
-# guard (don't).
-#
-# host networking has real tradeoffs (no network isolation from the host,
-# not available at all on Docker Desktop for Mac/Windows — only Linux hosts
-# get a real shared network namespace). If that's a blocker, run `dsh web`
-# on the host directly instead of in a container; this image's contribution
-# is a reproducible build, not a way to publish the UI more widely than
-# upstream intends it to be.
-#
-# All DSH_* runtime vars are read by docker-entrypoint.sh — see that file's header
-# comment for the full reference.
+#   cp .env.example .env
+#   make up                    # build + start (base + daemon fragments)
+# =============================================================================
+
+name: dsh
 
 services:
   dsh:
-    image: ghcr.io/arasemco/dsh:latest
-    hostname: dsh
-    #restart: unless-stopped
+    image: ${DSH_IMAGE:-dsh:local}
+    pull_policy: build
+    build:
+      context: ./image
+      dockerfile: Dockerfile
+      # Build the runtime stage: "test" needs a BuildKit secret and is only
+      # produced by the bake "test" target.
+      target: runtime
+      args:
+        AGENT_BASE: ${AGENT_BASE:-agent-base:1.4.1}
+        DSH_VERSION: ${DSH_VERSION:-0.2.1-rc.5}
     network_mode: host
-    # The image ships no init process of its own. dsh spawns subprocesses
-    # for tool calls that need PID 1 to reap them and forward signals on
-    # `docker stop`; init: true makes Docker inject its built-in tini.
-    init: true
+    command: ["web"]
     environment:
-      DSH_PORT: "3080"
-      # DSH_HOST: left unset on purpose — see the note above. Setting it to
-      # "0.0.0.0" is refused by both dsh itself and docker-entrypoint.sh.
-      # DSH_TRUSTED_HOSTS: "example.internal:3080"
-    # The container runs as uid:gid 1000:1000, never root, so these host
-    # directories must exist and be owned by 1000:1000 before the first
-    # start (`make up` creates them); Docker would create missing ones as root.
+      - DSH_PORT=${DSH_PORT:-3080}
+      - DSH_WORKSPACE=/home/agent/workspace
+      - DSH_TRUSTED_HOSTS=${DSH_TRUSTED_HOSTS:-}
+      - DSH_DOCKERD=${DSH_DOCKERD:-1}
     volumes:
-      # Profiles, credentials (the DeepSeek API key entered via Settings →
-      # Models), and session history — persists across container recreation.
-      - ./data/dsh-home:/home/dsh/.dsh
-      # The project directory dsh operates on. Point this at whatever
-      # you'd otherwise `cd` into before running `dsh web` on the host.
-      - ./data/workspace:/home/dsh/workspace
-      # Images, containers and build cache of the in-container rootless
-      # Docker daemon. A named volume (not a bind mount): it inherits dsh
-      # ownership from the image and holds files owned by subordinate uids.
-      - dsh-docker:/home/dsh/.local/share/docker
-    # Required by the rootless Docker daemon docker-entrypoint.sh starts:
-    # rootlesskit creates user/mount namespaces (blocked by the default
-    # seccomp profile and masked /proc paths), fuse-overlayfs needs
-    # /dev/fuse, and slirp4netns needs /dev/net/tun. Without them dsh still
-    # runs, only `docker` inside the container is unavailable.
-    security_opt:
-      - seccomp:unconfined
-      - systempaths=unconfined
-    devices:
-      - /dev/fuse
-      - /dev/net/tun
-
-  # Same image, no host networking — useful for CI smoke tests or anywhere
-  # you only need the process to start and pass its HEALTHCHECK, not to be
-  # reachable from outside the container. `docker compose exec dsh-isolated
-  # node /usr/local/lib/dsh-healthcheck.mjs` runs the same check by hand.
-  dsh-isolated:
-    image: ghcr.io/arasemco/dsh:latest
-    hostname: dsh-isolated
-    restart: "no"
-    profiles: ["isolated"]
-    init: true
-    environment:
-      DSH_PORT: "3080"
-      # Runs with the default seccomp profile and no devices, so the
-      # rootless Docker daemon can't start here; skip it.
-      DSH_DOCKERD: "0"
-    volumes:
-      # Same 1000:1000 ownership requirement as the dsh service above.
-      - ./data/dsh-isolated-home:/home/dsh/.dsh
-      - ./data/workspace:/home/dsh/workspace
+      # Profiles, credentials (the DeepSeek API key written by Settings -> Models)
+      # and session history. A named volume inherits the agent user's ownership
+      # from the image; point DSH_HOME_HOST at a host directory (owned by uid
+      # 1000) to bind instead.
+      - ${DSH_HOME_HOST:-dsh-home}:/home/agent/.dsh
 
 volumes:
-  dsh-docker:
+  # agent-docker is required by agent-base's daemon fragment.
+  agent-docker:
+  dsh-home:

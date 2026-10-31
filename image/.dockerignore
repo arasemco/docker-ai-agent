@@ -1,0 +1,5 @@
+# The build context is image/ only: Dockerfile, healthcheck and hooks.
+.git
+.gitignore
+.dockerignore
+*.log

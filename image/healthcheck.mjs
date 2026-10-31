@@ -12,8 +12,8 @@
 // dsh does, and requires a 200 for `/`. A pass therefore proves the server is
 // up, its credentials store loads, and its browser auth accepts a valid session.
 //
-// Runs as the container's user, dsh (see the Dockerfile's USER), which owns
-// the 0600 credentials file. Parses YAML with the same
+// Runs as root (s6's PID 1 user) and reads the credentials file owned by the
+// agent user; the file is mode 0600, which root can still read. Parses YAML with the same
 // `yaml` package dsh's own credentials-local plugin resolves, rather than a
 // hand-rolled parser.
 // =============================================================================
@@ -23,9 +23,11 @@ import { request } from 'node:http'
 import { createRequire } from 'node:module'
 import { join } from 'node:path'
 
-const { parse } = createRequire(
-  '/usr/local/lib/node_modules/@deepseek-ai/dsh/node_modules/@deepseek-ai/dsh-credentials-local/package.json',
-)('yaml')
+// Resolve `yaml` the way dsh does, from its own package so the dependency tree
+// (hoisted or nested) is the one dsh actually uses at runtime.
+const dshPackage =
+  process.env.DSH_PACKAGE || '/usr/local/lib/node_modules/@deepseek-ai/dsh/package.json'
+const { parse } = createRequire(dshPackage)('yaml')
 
 const fail = (message) => {
   console.error(`healthcheck: ${message}`)
@@ -34,7 +36,7 @@ const fail = (message) => {
 
 const b64url = (buffer) => Buffer.from(buffer).toString('base64url')
 
-const home = process.env.DSH_HOME || '/home/dsh/.dsh'
+const home = process.env.DSH_HOME || '/home/agent/.dsh'
 const port = process.env.DSH_PORT || '3080'
 
 let secret

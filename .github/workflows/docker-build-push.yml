@@ -1,21 +1,19 @@
-name: Build and push Docker images
+name: Build dsh image
 
 on:
   push:
-    branches: [ "main" ]
-    tags: [ "v*.*.*" ]
+    branches: ["main"]
+    tags: ["v*.*.*"]
   pull_request:
-    branches: [ "main" ]
+    branches: ["main"]
   workflow_dispatch: {}
 
-# Cancels an in-progress run for the same branch/ref when a new commit
-# lands, instead of letting two builds for the same ref race each other.
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
-  build-and-push:
+  build:
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -25,61 +23,30 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
         with:
-          # docker-bake.hcl's oci_labels() needs a real commit history to
-          # resolve GIT_SHA/GIT_REF meaningfully — default checkout depth
-          # already covers HEAD's SHA, but fetch-depth: 0 leaves room for
-          # a future step that needs `git describe` or tag lookups.
           fetch-depth: 0
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      # Derives everything docker-bake.hcl's variables need, from whichever
-      # git host is running this workflow — no hardcoded "github.com"
-      # assumption anywhere below. Works unmodified on GitHub Actions and on
-      # Gitea Actions (which aliases the same github.* context), since both
-      # expose github.server_url/github.repository identically.
-      #
-      # Each output is computed exactly once, in a fixed order, so later
-      # lines can reuse earlier ones instead of recomputing the same
-      # host-stripping logic twice.
+      # Derives the registry and source URL from the hosting context (GitHub
+      # Actions or Gitea Actions, which aliases github.*). This workflow is the
+      # only place that assumes an identity; docker-bake.hcl defaults to none.
       - name: Set variables
         id: vars
         run: |
           set -euo pipefail
 
           is_github_hosted=false
-          if [ "${GITHUB_SERVER_URL}" = "https://github.com" ]
-          then is_github_hosted=true
-          fi
+          if [ "${GITHUB_SERVER_URL}" = "https://github.com" ]; then is_github_hosted=true; fi
 
-          # Bare host, with scheme stripped, for docker/login-action's
-          # `registry:` input (e.g. "git.omesa.net", not "https://git.omesa.net").
           server_host="${GITHUB_SERVER_URL#http://}"
           server_host="${server_host#https://}"
 
-          if [ "${is_github_hosted}" = true ]
-          then registry_host="ghcr.io"
-          else registry_host="${server_host}"
-          fi
+          if [ "${is_github_hosted}" = true ]; then registry_host="ghcr.io"; else registry_host="${server_host}"; fi
 
-          # Full image repository prefix, matching docker-bake.hcl's
-          # REGISTRY variable shape (host/namespace, e.g. "ghcr.io/arasemco"),
-          # not just the bare host — REGISTRY is what target's tags
-          # get built from (${REGISTRY}/dsh:latest).
           registry="${registry_host}/${GITHUB_REPOSITORY_OWNER}"
-
-          # Matches docker-bake.hcl's SOURCE_URL — where the code lives,
-          # kept independent of where the built image gets pushed.
           source_url="${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}"
 
-          # Matches GIT_SHA/GIT_REF in docker-bake.hcl, which feed
-          # org.opencontainers.image.revision/ref.name. Without these, every
-          # CI-built image's labels fall back to docker-bake.hcl's own
-          # "unknown" default. GITHUB_SHA is always the real commit being
-          # built, even on a tag push; GIT_REF strips the tag/branch prefix
-          # from GITHUB_REF so it reads "v1.2.3" or "main", not
-          # "refs/tags/v1.2.3".
           git_ref="${GITHUB_REF#refs/tags/}"
           git_ref="${git_ref#refs/heads/}"
 
@@ -92,15 +59,9 @@ jobs:
             echo "git_ref=${git_ref}"
           } >> "$GITHUB_OUTPUT"
 
-      # Skip login on pull_request builds — PRs from forks can't see secrets,
-      # and unmerged code shouldn't be pushed anyway. The build step below
-      # still runs on PRs to catch breakage, it just doesn't push.
-      #
-      # Two different token secrets because GHCR requires the built-in
-      # GITHUB_TOKEN specifically (a self-hosted PAT isn't scoped to GHCR at
-      # all), while a self-hosted registry has no built-in token — GIT_TOKEN
-      # is expected to be a PAT/deploy token added under this repo's
-      # secrets, scoped to that self-hosted registry.
+      # Skipped on pull requests: fork PRs cannot see secrets and unmerged code
+      # should not be published. GHCR needs the built-in GITHUB_TOKEN; a
+      # self-hosted registry has none, so GIT_TOKEN is a PAT/deploy token.
       - name: Log in to Container Registry
         if: github.event_name != 'pull_request'
         uses: docker/login-action@v3
@@ -109,15 +70,8 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ steps.vars.outputs.is_github_hosted == 'true' && secrets.GITHUB_TOKEN || secrets.GIT_TOKEN }}
 
-      # Builds every target in the "default" group defined in docker-bake.hcl
-      # (just "dsh" here). Pushes on push/tag events; on pull_request events
-      # it builds only (push: false), so a broken Dockerfile fails the PR
-      # check without publishing anything.
-      #
-      # REGISTRY/SOURCE_URL/GIT_SHA/GIT_REF map directly onto the `variable`
-      # blocks of the same names in docker-bake.hcl — env vars override an
-      # HCL variable's default whenever the names match, the only override
-      # mechanism Bake has.
+      # The default group is the runtime image. The "test" target needs the
+      # DeepSeek API key and is never built here.
       - name: Build and push (docker buildx bake)
         uses: docker/bake-action@v7
         with:
@@ -130,3 +84,6 @@ jobs:
           SOURCE_URL: ${{ steps.vars.outputs.source_url }}
           GIT_SHA: ${{ steps.vars.outputs.git_sha }}
           GIT_REF: ${{ steps.vars.outputs.git_ref }}
+          # The base tag has to be reachable from CI; set AGENT_BASE at the
+          # repository or organisation level to the pushed agent-base tag.
+          AGENT_BASE: ${{ vars.AGENT_BASE }}
