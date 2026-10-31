@@ -9,7 +9,7 @@ the toolchain agents expect. It ships no agent — child images add their own CL
 | Document | What it answers |
 |---|---|
 | [architecture.md](architecture.md) | What is inside the image? How does it boot? Who runs what? |
-| [compose.md](compose.md) | How do the fragments, profiles and stack services fit together? |
+| [compose.md](compose.md) | How do the anchors, profiles and stack services fit together? |
 | [configuration.md](configuration.md) | Every environment variable, volume, path and hook. |
 | [build.md](build.md) | Building, tagging, publishing, and where the OCI metadata comes from. |
 | [troubleshooting.md](troubleshooting.md) | The failures worth knowing before they happen. |
@@ -30,16 +30,16 @@ Each stack has its own documentation next to its image:
 `image/` builds Debian 12 with Node/npm from Debian, an `agent` user at
 uid/gid 1000, docker-ce rootless, Python/uv/yq and a build toolchain. `s6-overlay`
 is PID 1 and runs two longruns: `dockerd` (announces readiness when the API
-answers) and `agent` (waits for that, then execs `$AGENT_CMD`). Compose is a set
-of per-concern fragments in `compose/`; the root `docker-compose.yml` includes
-the fragments and every stack service; `docker compose --profile <name>` selects
-which stack runs. A child image only needs `FROM`,
-its CLI, and `ENV AGENT_CMD`.
+answers) and `agent` (waits for that, then execs `$AGENT_CMD`). `docker-compose.yml`
+defines the shared sandbox as YAML anchors and one service per stack, behind a
+profile; `docker compose --profile <name> up` starts exactly one stack. A stack
+image only needs `FROM`, its CLI, and `ENV AGENT_CMD`.
 
 ## Conventions used throughout
 
-- **Fragment** — a compose file in `compose/` that owns one concern and keys the
-  canonical service name `agent-base`.
+- **Anchor** — a YAML anchor in `docker-compose.yml` (`x-sandbox`,
+  `x-agent-env`, `x-docker`, `x-skills`) that owns one concern and is merged into
+  every service that needs it.
 - **Child image** — an image built `FROM agent-base`, adding one agent CLI.
 - **Agent user** — the unprivileged account (`agent`, uid/gid 1000) that both
   services run as; the container's PID 1 stays root.

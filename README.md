@@ -35,37 +35,32 @@ docker compose --profile opencode config  # see what a profile resolves to
 ```
 
 Everything is optional: every value in `.env.example` is a default, and the
-compose fragments read their knobs from the environment.
+compose anchors read their knobs from the environment.
 
 ## How it is put together
 
 ```
 image/                 the base image (Dockerfile + rootfs/)
-compose/               one fragment per concern, included by docker-compose.yml
-  base.yml             service skeleton + AGENT_* toggles
-  daemon.yml           /dev/fuse, /dev/net/tun, seccomp exceptions, docker volume
-  image.yml            build of image/ (the `base` profile)
-  proxy.yml            outbound proxy pass-through (values from .env)
-  limits.yml           CPU/memory from AGENT_CPUS / AGENT_MEMORY
-  mounts.yml           workspace bind from AGENT_WORKSPACE_HOST
-  skills.yml           shared Agent Skills root from AGENT_SKILLS_HOST
+docker-compose.yml     one file: anchored sandbox/env/volume sections plus one
+                       service per stack, each behind a profile
 stacks/<name>/         image/ (Dockerfile + files), docs/, examples/
-docker-compose.yml     includes the fragments and defines every stack service
 docker-bake.hcl        targets: agent-base, opencode, dsh (+ dev and test)
 scripts/               bake.sh (build + provenance), smoke.sh (runtime check)
 docs/                  documentation for users
 .agents/               orientation, checks and skills for coding agents
 ```
 
-A stack service is only its own concerns — build, command, ports, credentials,
-state volumes — because it `extends: agent-base` and inherits the whole sandbox:
+A stack service carries only its own concerns — build, command, ports,
+credentials, state volumes — because it merges the shared anchors:
 
 ```yaml
 opencode:
-  extends:
-    service: agent-base
   profiles: ["opencode"]
-  build: { context: ./stacks/opencode/image, args: { AGENT_BASE: agent-base:1.4.1 } }
+  <<: *sandbox
+  environment:
+    <<: *agent-env
+    OPENCODE_SERVER_PASSWORD: "${OPENCODE_SERVER_PASSWORD:-changeme123}"
+  build: { context: ./stacks/opencode/image, target: opencode }
   command: ["web", "--port", "4096", "--hostname", "0.0.0.0"]
 ```
 
@@ -88,7 +83,7 @@ The base image is built first and the stacks build `FROM` it, so a single
 |---|---|
 | [docs/index.md](docs/index.md) | overview and reading order |
 | [docs/architecture.md](docs/architecture.md) | image contents, boot sequence, services, state |
-| [docs/compose.md](docs/compose.md) | fragments, profiles, stack services |
+| [docs/compose.md](docs/compose.md) | anchors, profiles, stack services |
 | [docs/configuration.md](docs/configuration.md) | variables, volumes, hooks, healthcheck |
 | [docs/build.md](docs/build.md) | targets, pins, provenance, publishing, CI |
 | [docs/troubleshooting.md](docs/troubleshooting.md) | known failure modes |

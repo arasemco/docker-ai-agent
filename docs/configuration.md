@@ -41,7 +41,7 @@ ALL_PROXY   →  all_proxy   →  PROXY  →  (empty)
 
 ## Volumes
 
-| Fragment | Volume | Target |
+| Anchor | Volume | Target |
 |---|---|---|
 | `daemon.yml` | `agent-docker` | `/home/agent/.local/share/docker` |
 | `image.yml` | – | (no mount: the workspace stays inside the container) |
@@ -57,7 +57,7 @@ CLIs discover them under `~/.agents/skills` and their tool-specific paths, and
 load the body on demand through their `skill` tool.
 
 The image creates `/home/agent/.agents/skills` owned by the agent user. The
-`skills` fragment mounts a host directory there read-only, so one library serves
+`skills` anchor mounts a host directory there read-only, so one library serves
 every agent container:
 
 ```bash
@@ -66,7 +66,7 @@ AGENT_SKILLS_HOST=~/skills docker compose --profile opencode up -d
 
 Read-only is deliberate: a skill may execute its scripts, but it should not
 rewrite the shared library from inside a container. Drop the `:ro` in
-`compose/skills.yml` to allow edits through the agent.
+the `x-skills` anchor to allow edits through the agent.
 
 A child image can also ship skills of its own by copying them into
 `/home/agent/.agents/skills`.

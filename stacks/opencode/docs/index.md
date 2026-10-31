@@ -20,6 +20,6 @@ has the map, invariants and checks.
 
 `image/Dockerfile` installs `opencode-ai` from npm into the base image and sets
 `AGENT_CMD=opencode`. The compose file carries only the port, credentials and
-state volumes; the sandbox settings come from agent-base's compose fragments via
+state volumes; the sandbox settings come from the shared compose anchors via
 `scripts/compose.sh`. `make up` assembles and starts it, `make smoke` proves the
 UI answers and the services are up.

@@ -1,6 +1,6 @@
 ---
 name: child-image
-description: Build a new agent image on top of agent-base — install the CLI, own its state directories, set AGENT_CMD, and wire a compose stack onto the shared fragments. Use when adding support for another agent CLI or restructuring an existing child stack.
+description: Build a new agent image on top of agent-base — install the CLI, own its state directories, set AGENT_CMD, and wire a compose stack onto the shared anchors. Use when adding support for another agent CLI or restructuring an existing child stack.
 metadata:
   area: consumer
   files: examples/child-image/
@@ -59,22 +59,14 @@ services:
     volumes:
       - ${MY_CLI_HOME_HOST:-my-cli-home}:/home/agent/.config/my-cli
 volumes:
-  agent-docker:                          # the daemon fragment mounts it
+  agent-docker:                          # the daemon anchor mounts it
   my-cli-home:
 ```
 
-Wrap the assembler so callers do not pass paths:
-
-```bash
-#!/usr/bin/env bash
-set -euo pipefail
-cd "$(dirname "$0")/.."
-export COMPOSE_WITH="${COMPOSE_WITH:-${WITH:-daemon}}"
-exec ../agent-base/scripts/compose.sh \
-    --service my-cli \
-    --fragments ../agent-base/compose \
-    --file docker-compose.yml "$@"
-```
+Stand alone by copying the shared anchors (`x-sandbox`, `x-agent-env`,
+`x-docker`, `x-skills`) from this repository's `docker-compose.yml`, or add the
+stack here under `stacks/<name>/` with a service that merges them and its own
+`profiles:` entry.
 
 ## Runtime expectations inherited from agent-base
 

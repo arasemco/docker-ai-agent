@@ -15,7 +15,7 @@ request succeeds.
 
 ```bash
 cp .env.example .env          # base tag, dsh version, port
-make up                       # build and start (base + daemon fragments)
+make up                       # build and start (base + daemon anchors)
 ```
 
 `make logs` prints the launch URL. Open it, sign in, and add the DeepSeek API key
@@ -52,7 +52,7 @@ intends. This is Linux-only; on Docker Desktop run dsh on the host instead. See
 | dsh | `npm install -g @deepseek-ai/dsh@${DSH_VERSION}` |
 | flag translation (`DSH_*` → `dsh web` options) | `image/hooks/20-dsh-flags.sh`, sourced by agent-base's agent service |
 | healthcheck | `image/healthcheck.mjs` (signed session cookie, expects 200) |
-| sandbox settings (devices, seccomp, proxy, limits, mounts, skills) | agent-base compose fragments via `scripts/compose.sh` |
+| sandbox settings (devices, seccomp, proxy, limits, mounts, skills) | the shared compose anchors via `scripts/compose.sh` |
 
 State lives in the `dsh-home` volume (`/home/agent/.dsh`): profiles, credentials
 written by the UI, and session history.
@@ -74,7 +74,7 @@ written by the UI, and session history.
 | `image/healthcheck.mjs` | authenticated healthcheck |
 | `image/hooks/20-dsh-flags.sh` | `DSH_*` → CLI flag translation |
 | `docker-compose.yml` | host networking, credentials, `DSH_*` |
-| `scripts/compose.sh` | fragment assembler wrapper (agent-base does the work) |
+| `scripts/compose.sh` | anchor assembler wrapper (agent-base does the work) |
 | `scripts/bake.sh` | builds and tags the image, deriving provenance from git |
 | `scripts/smoke.sh` | runtime check of a running stack |
 | `docker-bake.hcl` | bake targets, pins, OCI labels |

@@ -11,10 +11,10 @@ metadata:
 ## Run
 
 ```bash
-docker compose up -d --build                 # default stack (base + daemon + image)
-docker compose --profile opencode up -d
-make up WITH=daemon,limits,mounts
-docker compose exec --user 1000 agent-base bash    # agent's shell (exec is root)
+make up PROFILE=opencode                          # or PROFILE=dsh
+docker compose --profile opencode up -d --build   # same, without make
+docker compose --profile base up -d               # sandbox only
+docker compose --profile opencode exec --user 1000 opencode bash   # agent's shell
 ```
 
 ## Read the right output first
@@ -41,7 +41,7 @@ the right form per launcher.
 
 **`dockerd exited during startup` with mount errors** — the container lacks
 `seccomp:unconfined`, `systempaths=unconfined`, `/dev/fuse` or `/dev/net/tun`.
-Include the `daemon` fragment.
+Include the `daemon` anchor.
 
 **`ERROR: /home/agent/workspace is not writable`** — a bind source that uid 1000
 cannot write: a missing directory Docker created root-owned, or a rootless host
@@ -49,7 +49,7 @@ where bind mounts appear root-owned inside. Create the directory owned by uid
 1000 on the host, use a named volume, or run the outer daemon rootful.
 
 **Container exits immediately** — `AGENT_CMD` is `bash` with no TTY. A stack
-that should stay up supplies a command (`compose/harness.yml` does).
+that should stay up supplies a long-running command (the `base` profile does).
 
 **Unhealthy but the CLI answers** — `AGENT_HEALTHCHECK=auto` only warns about a
 dead daemon; a real failure means the CLI process is gone.

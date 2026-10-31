@@ -36,7 +36,7 @@ the UI is loopback-only. Use host networking instead (the default) and keep
 
 `make smoke` prints the daemon version or `SKIP`. The daemon log is
 `/home/agent/.docker/dockerd.log` inside the container. Check that the stack was
-started with the `daemon` fragment (`make up` does) and that the base image is
+started with the `daemon` anchor (`make up` does) and that the base image is
 agent-base 1.4.1 or newer — older versions cannot start the daemon when the
 container itself runs under a rootless host daemon.
 

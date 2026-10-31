@@ -1,104 +1,161 @@
 # =============================================================================
 # ai/agent — one project, one base image, one stack per agent CLI
 # =============================================================================
-# The base image is built from image/. Every agent stack (opencode, dsh, and
-# eventually claude-code) builds on top of it from stacks/, and its service is
-# defined below next to the others.
+# Everything that is shared lives in the anchors below, grouped by concern.
+# Services merge the ones they need; nothing is repeated and nothing is copied
+# between files.
 #
 # Pick what to run with a profile:
 #
-#   docker compose --profile opencode up -d --build  # OpenCode Web UI
-#   docker compose --profile dsh up -d --build       # dsh Web UI (host network)
+#   docker compose --profile opencode up -d --build   # OpenCode Web UI
+#   docker compose --profile dsh up -d --build        # dsh Web UI (host network)
+#   docker compose --profile base up -d --build       # sandbox only (no CLI)
 #   make up PROFILE=opencode
 #
-# The fragments in compose/ are included, not copied:
-#
-#   base.yml     service skeleton + AGENT_* toggles
-#   daemon.yml   /dev/fuse, /dev/net/tun, seccomp exceptions, agent-docker volume
-#   image.yml    build of image/ for the `base` profile
-#   proxy.yml    outbound proxy pass-through (values from .env, empty by default)
-#   limits.yml   CPU/memory from AGENT_CPUS / AGENT_MEMORY
-#   mounts.yml   workspace bind from AGENT_WORKSPACE_HOST (default ./workspace)
-#   skills.yml   shared Agent Skills root from AGENT_SKILLS_HOST (default ./skills)
-#
-# Every stack service `extends: agent-base`, so it inherits the whole sandbox
-# without repeating a single device or environment entry.
+# Anchors:
+#   x-sandbox     init/tty/restart, seccomp exceptions, devices, resource limits
+#   x-agent-env   AGENT_* toggles and proxy pass-through shared by every service
+#   x-docker      the inner daemon's data volume
+#   x-skills      the shared Agent Skills root (read-only)
 # =============================================================================
 
 name: agent
 
-include:
-  - compose/base.yml
-  - compose/daemon.yml
-  - compose/image.yml
-  - compose/proxy.yml
-  - compose/limits.yml
-  - compose/mounts.yml
-  - compose/skills.yml
+# --- sandbox ---------------------------------------------------------------
+# What the rootless Docker daemon needs from the host: rootlesskit creates user
+# and mount namespaces (blocked by the default seccomp profile and masked /proc
+# paths), fuse-overlayfs needs /dev/fuse, slirp4netns needs /dev/net/tun.
+x-sandbox: &sandbox
+  init: false
+  stdin_open: true
+  tty: true
+  restart: "no"
+  hostname: ${AGENT_HOSTNAME:-agent}
+  security_opt:
+    - seccomp:unconfined
+    - systempaths=unconfined
+  devices:
+    - /dev/fuse
+    - /dev/net/tun
+  deploy:
+    resources:
+      limits:
+        cpus: "${AGENT_CPUS:-2}"
+        memory: "${AGENT_MEMORY:-4G}"
+
+# --- environment -----------------------------------------------------------
+# Merged into each service's environment mapping (`<<: *agent-env`), so a stack
+# adds its own variables without restating these.
+#
+# Proxy variables are pass-through: empty unless set, one PROXY value covers
+# every scheme, and a per-scheme variable wins over it. NO_PROXY defaults to
+# loopback when neither case is set, so local endpoints never go to the proxy.
+x-agent-env: &agent-env
+  AGENT_WORKSPACE: /home/agent/workspace
+  AGENT_DOCKERD: "${AGENT_DOCKERD:-1}"
+  AGENT_DOCKERD_TIMEOUT: "${AGENT_DOCKERD_TIMEOUT:-30}"
+  AGENT_DOCKERD_MAX_RESTARTS: "${AGENT_DOCKERD_MAX_RESTARTS:-3}"
+  AGENT_RESTART_MAX: "${AGENT_RESTART_MAX:-3}"
+  PROXY: "${PROXY:-}"
+  HTTP_PROXY: "${HTTP_PROXY:-}"
+  HTTPS_PROXY: "${HTTPS_PROXY:-}"
+  ALL_PROXY: "${ALL_PROXY:-}"
+  NO_PROXY: "${NO_PROXY:-localhost,127.0.0.1,::1}"
+  http_proxy: "${http_proxy:-}"
+  https_proxy: "${https_proxy:-}"
+  all_proxy: "${all_proxy:-}"
+  no_proxy: "${no_proxy:-localhost,127.0.0.1,::1}"
+
+# --- volumes ---------------------------------------------------------------
+# A named volume, not a bind mount: the daemon's data holds files owned by
+# subordinate uids, and losing it would throw away the image cache on every
+# recreate.
+x-docker: &docker-volume "${AGENT_DOCKER_VOLUME:-agent-docker}:/home/agent/.local/share/docker"
+
+# Agent Skills are directories holding a SKILL.md; agent-compatible CLIs read
+# them from ~/.agents/skills. Read-only, so a skill cannot rewrite the shared
+# library from inside a container.
+x-skills: &skills-volume "${AGENT_SKILLS_HOST:-${PWD}/skills}:/home/agent/.agents/skills:ro"
 
 services:
-  # The sandbox on its own. Compose merges a profile through `extends`, so this
-  # profile also selects every stack that extends the service: `--profile all`
-  # means "sandbox and all stacks". Use a stack profile to run just one.
+  # -------------------------------------------------------------------------
+  # Sandbox only: the base image with no agent CLI. Its default command is a
+  # shell, which exits immediately without a TTY, so keep it up for exec.
+  # -------------------------------------------------------------------------
   agent-base:
-    profiles: ["all"]
-    # This image ships no agent CLI, so its default command is a shell, which
-    # would exit immediately without a TTY. Keep it up for `docker compose exec`.
+    profiles: ["base"]
+    <<: *sandbox
+    image: ${AGENT_IMAGE:-agent-base:local}
+    pull_policy: build
+    build:
+      context: ./image
+      dockerfile: Dockerfile
+      target: agent-base
+      args:
+        AGENT_USER: ${AGENT_USER:-agent}
+        AGENT_UID: ${AGENT_UID:-1000}
+        AGENT_GID: ${AGENT_GID:-1000}
+        DOCKER_VERSION: ${DOCKER_VERSION:-29.8.1}
+        UV_VERSION: ${UV_VERSION:-0.13.6}
     command: ["-lc", "sleep infinity"]
+    environment:
+      <<: *agent-env
+    volumes:
+      - *docker-volume
+      - *skills-volume
 
-  # ---------------------------------------------------------------------------
+  # -------------------------------------------------------------------------
   # OpenCode — Web UI on a published loopback port.
-  # ---------------------------------------------------------------------------
+  # -------------------------------------------------------------------------
   opencode:
-    extends:
-      service: agent-base
     profiles: ["opencode"]
+    <<: *sandbox
     image: ${OPENCODE_IMAGE:-opencode:local}
     pull_policy: build
     build:
       context: ./stacks/opencode/image
       dockerfile: Dockerfile
-      # The inherited sandbox build targets its own stage; each stack names its
-      # stage so the two do not leak into each other.
       target: opencode
       args:
         AGENT_BASE: ${AGENT_BASE:-agent-base:1.4.1}
         OPENCODE_VERSION: ${OPENCODE_VERSION:-1.19.5}
     hostname: opencode
-    # --hostname 0.0.0.0 makes the published port reachable inside the container;
-    # exposure is controlled by the binding below.
+    # --hostname 0.0.0.0 makes the published port reachable inside the
+    # container; exposure is controlled by the binding below.
     command: ["web", "--port", "${OPENCODE_PORT:-4096}", "--hostname", "0.0.0.0"]
     ports:
       # Loopback by default: the password has a weak fallback. Set
       # OPENCODE_BIND_IP=0.0.0.0 to publish on the LAN.
       - "${OPENCODE_BIND_IP:-127.0.0.1}:${OPENCODE_PORT:-4096}:${OPENCODE_PORT:-4096}"
     environment:
-      - OPENCODE_SERVER_PASSWORD=${OPENCODE_SERVER_PASSWORD:-changeme123}
-      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
-      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
-      - GEMINI_API_KEY=${GEMINI_API_KEY:-}
-      - OLLAMA_BASE_URL=${OLLAMA_BASE_URL:-}
-      - OLLAMA_API_KEY=${OLLAMA_API_KEY:-}
+      <<: *agent-env
+      OPENCODE_SERVER_PASSWORD: "${OPENCODE_SERVER_PASSWORD:-changeme123}"
+      ANTHROPIC_API_KEY: "${ANTHROPIC_API_KEY:-}"
+      OPENAI_API_KEY: "${OPENAI_API_KEY:-}"
+      GEMINI_API_KEY: "${GEMINI_API_KEY:-}"
+      OLLAMA_BASE_URL: "${OLLAMA_BASE_URL:-}"
+      OLLAMA_API_KEY: "${OLLAMA_API_KEY:-}"
     volumes:
+      - *docker-volume
+      - *skills-volume
       # Named volumes inherit the agent user's ownership from the image; point a
       # *_HOST variable at a host path (uid 1000) to bind instead.
       - ${OPENCODE_CONFIG_HOST:-opencode-config}:/home/agent/.config/opencode
       - ${OPENCODE_DATA_HOST:-opencode-data}:/home/agent/.local/share/opencode
       - ${OPENCODE_STATE_HOST:-opencode-state}:/home/agent/.local/state/opencode
 
-  # ---------------------------------------------------------------------------
+  # -------------------------------------------------------------------------
   # dsh (DeepSeek Harness) — loopback-only UI, reached through host networking.
-  # ---------------------------------------------------------------------------
-  # dsh's web server binds 127.0.0.1 and refuses wildcard addresses, because it
-  # would expose remote code execution to the network. A container's loopback is
-  # its own, so a published port forwards to an address nothing listens on. With
-  # host networking the container's 127.0.0.1 is the host's, and the UI answers at
+  # -------------------------------------------------------------------------
+  # dsh binds 127.0.0.1 and refuses wildcard addresses, because it would expose
+  # remote code execution to the network. A container's loopback is its own, so
+  # a published port forwards to an address nothing listens on; with host
+  # networking the container's 127.0.0.1 is the host's, and the UI answers at
   # http://localhost:3080 with the same loopback-only exposure dsh intends.
   # Linux-only; on Docker Desktop run dsh on the host instead.
   dsh:
-    extends:
-      service: agent-base
     profiles: ["dsh"]
+    <<: *sandbox
     image: ${DSH_IMAGE:-dsh:local}
     pull_policy: build
     build:
@@ -113,17 +170,19 @@ services:
     network_mode: host
     command: ["web"]
     environment:
-      - DSH_PORT=${DSH_PORT:-3080}
-      - DSH_WORKSPACE=/home/agent/workspace
-      - DSH_TRUSTED_HOSTS=${DSH_TRUSTED_HOSTS:-}
-      - DSH_DOCKERD=${DSH_DOCKERD:-1}
+      <<: *agent-env
+      DSH_PORT: "${DSH_PORT:-3080}"
+      DSH_WORKSPACE: /home/agent/workspace
+      DSH_TRUSTED_HOSTS: "${DSH_TRUSTED_HOSTS:-}"
+      DSH_DOCKERD: "${DSH_DOCKERD:-1}"
     volumes:
-      # Profiles, credentials (DeepSeek API key from Settings -> Models) and
+      - *docker-volume
+      - *skills-volume
+      # Profiles, credentials (the API key written by Settings -> Models) and
       # session history.
       - ${DSH_HOME_HOST:-dsh-home}:/home/agent/.dsh
 
 volumes:
-  # Declared by the fragments and services that mount them; listed for readers.
   agent-docker:
   opencode-config:
   opencode-data:

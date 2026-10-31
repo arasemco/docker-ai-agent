@@ -12,7 +12,7 @@ comes from agent-base, pinned by tag in `AGENT_BASE`.
 
 ```bash
 cp .env.example .env          # port, image tag, password
-make up                       # build and start (base + daemon fragments)
+make up                       # build and start (base + daemon anchors)
 ```
 
 Open <http://127.0.0.1:4096>. The UI is published on loopback by default because
@@ -28,7 +28,7 @@ make debug      # shell as root
 ```
 
 `make up` and `scripts/compose.sh` assemble the stack from agent-base's compose
-fragments; `docker compose up` alone starts the UI without the daemon grants.
+anchors; `docker compose up` alone starts the UI without the daemon grants.
 
 ## How it is put together
 
@@ -36,7 +36,7 @@ fragments; `docker compose up` alone starts the UI without the daemon grants.
 |---|---|
 | base image (Debian, agent user, s6 services, dockerd, toolchain) | `AGENT_BASE` build arg, default `agent-base:1.4.0` |
 | OpenCode | `npm install -g opencode-ai@${OPENCODE_VERSION}` in `image/Dockerfile` |
-| sandbox (devices, seccomp, proxy, limits, mounts, skills) | agent-base compose fragments via `scripts/compose.sh` |
+| sandbox (devices, seccomp, proxy, limits, mounts, skills) | the shared compose anchors via `scripts/compose.sh` |
 | entrypoint, hooks, healthcheck, restart policy | agent-base |
 
 State lives under `/home/agent`:
@@ -66,7 +66,7 @@ config from [examples/config/opencode.jsonc](examples/config/opencode.jsonc).
 |---|---|
 | `image/Dockerfile` | the OpenCode layer on top of agent-base |
 | `docker-compose.yml` | the stack: port, credentials, state volumes |
-| `scripts/compose.sh` | fragment assembler wrapper (agent-base does the work) |
+| `scripts/compose.sh` | anchor assembler wrapper (agent-base does the work) |
 | `scripts/bake.sh` | builds and tags the image, deriving provenance from git |
 | `scripts/smoke.sh` | runtime check of a running stack |
 | `docker-bake.hcl` | bake targets, pins, OCI labels |

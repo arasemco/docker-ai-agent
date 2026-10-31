@@ -1,69 +1,59 @@
 # Compose model
 
-## Fragments
+## One file, anchored sections
 
-`compose/` holds one file per concern; every fragment keys the canonical service
-name `agent-base`, so including them all merges into a single service.
+There is a single `docker-compose.yml`. The shared parts are defined once as
+YAML anchors, grouped by concern, and each service merges the ones it needs:
 
-| Fragment | Owns | Knobs |
+| Anchor | Concern | Knobs |
 |---|---|---|
-| `base.yml` | service skeleton, `AGENT_*` toggles | `AGENT_*` |
-| `daemon.yml` | `/dev/fuse`, `/dev/net/tun`, seccomp exceptions, `agent-docker` volume | `AGENT_DOCKER_VOLUME` |
-| `image.yml` | build of `image/` for the `base` profile | `AGENT_IMAGE` |
-| `proxy.yml` | outbound proxy pass-through | `PROXY`, `HTTP_PROXY`, … |
-| `limits.yml` | CPU/memory limits | `AGENT_CPUS`, `AGENT_MEMORY` |
-| `mounts.yml` | workspace bind | `AGENT_WORKSPACE_HOST` |
-| `skills.yml` | shared Agent Skills root, read-only | `AGENT_SKILLS_HOST` |
+| `x-sandbox` | `init`/tty/restart, seccomp exceptions, `/dev/fuse` + `/dev/net/tun`, resource limits | `AGENT_HOSTNAME`, `AGENT_CPUS`, `AGENT_MEMORY` |
+| `x-agent-env` | `AGENT_*` toggles and proxy pass-through, merged into each service's `environment` | `AGENT_DOCKERD*`, `AGENT_RESTART_MAX`, `PROXY`/`HTTP_PROXY`/… |
+| `x-docker` | the inner daemon's data volume | `AGENT_DOCKER_VOLUME` |
+| `x-skills` | the shared Agent Skills root, read-only | `AGENT_SKILLS_HOST` |
 
-Every fragment declares the volumes it mounts, so the composing file never
-repeats them.
+Anchors replaced an earlier per-file fragment layout: fragments needed `include:`
+plus `extends:` to reach a differently named service, and `extends` also leaks
+the parent's profile and build target, which made `--profile base` start every
+stack and failed stack builds with `target stage "agent-base" could not be found`.
+
+YAML merges mappings, not lists, so a service merges the mapping anchor and
+lists the volume anchors it needs:
+
+```yaml
+opencode:
+  profiles: ["opencode"]
+  <<: *sandbox
+  environment:
+    <<: *agent-env
+    OPENCODE_SERVER_PASSWORD: "${OPENCODE_SERVER_PASSWORD:-changeme123}"
+  volumes:
+    - *docker-volume
+    - *skills-volume
+    - ${OPENCODE_CONFIG_HOST:-opencode-config}:/home/agent/.config/opencode
+```
 
 ## Profiles
 
-The root `docker-compose.yml` includes all fragments and defines one service per
-stack, each gated by a profile:
+Each service has its own profile, so exactly one stack starts:
 
 ```bash
 docker compose --profile opencode up -d      # OpenCode Web UI
 docker compose --profile dsh up -d           # dsh Web UI (host networking)
-docker compose --profile all up -d           # sandbox and every stack
+docker compose --profile base up -d          # sandbox only, no agent CLI
 make up PROFILE=dsh
+docker compose --profile opencode config     # what a profile resolves to
 ```
-
-`docker compose --profile opencode config` shows exactly what a profile
-resolves to.
-
-## Stack services
-
-A stack service carries only its own concerns — build, command, ports,
-credentials and state — because it extends the sandbox:
-
-```yaml
-opencode:
-  extends:
-    service: agent-base
-  profiles: ["opencode"]
-  build:
-    context: ./stacks/opencode/image
-  command: ["web", "--port", "4096", "--hostname", "0.0.0.0"]
-```
-
-`extends` copies the parent's merged definition, so devices, seccomp, the
-daemon volume, proxy values and limits all apply without being repeated. It also
-inherits the parent's profile, which is why the sandbox's `all` profile selects
-every stack as well; a stack profile selects exactly one.
 
 ## Relative paths
 
-Build contexts are relative to the repository root (`image`,
-`stacks/<name>/image`) because the root compose file includes the fragments.
-Inside an included fragment, a path is resolved against that fragment's own
-directory — the reason `compose/image.yml` uses `../image`.
+Build contexts are relative to this file's directory, so `image` and
+`stacks/<name>/image` mean exactly what they say.
 
 ## Local overrides
 
-`compose/local.yml` is gitignored and is the place for per-host additions
-(extra binds, a second cache directory). Add it explicitly:
+`compose/local.yml` is gitignored and holds per-host additions (extra binds, a
+second cache directory). Pass it explicitly:
 
 ```bash
 docker compose --profile opencode -f docker-compose.yml -f compose/local.yml up -d

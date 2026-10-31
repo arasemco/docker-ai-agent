@@ -8,7 +8,7 @@ documentation lives in [`docs/`](docs/index.md); this file is only the short
 version.
 
 Task-specific skills are in [`.agents/skills/`](.agents/skills/): load the one
-that matches the job (`work-on-the-image`, `compose-fragments`,
+that matches the job (`work-on-the-image`, `compose-anchors`,
 `build-and-publish`, `run-and-debug`, `child-image`) before starting.
 
 ## Hard rules
@@ -18,7 +18,7 @@ that matches the job (`work-on-the-image`, `compose-fragments`,
 2. Do not end a Dockerfile with `USER 1000:1000`; `/init` must be PID 1 as root.
 3. No host-specific values in the core: no IPs, hostnames, registry paths or
    personal directories outside `examples/`.
-4. Compose fragments each own exactly one concern and declare the volumes they
+4. Compose anchors each own exactly one concern and declare the volumes they
    mount.
 5. Comments and docs describe what the code does and why it must — not the
    history of the change or a conversation.

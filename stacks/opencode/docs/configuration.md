@@ -57,9 +57,9 @@ fallback. Set a real `OPENCODE_SERVER_PASSWORD` before setting
 `OPENCODE_BIND_IP=0.0.0.0`. A password-protected UI answers `401` to a bare
 request, which is what `scripts/smoke.sh` expects.
 
-## Compose fragments
+## Compose anchors
 
-The stack is assembled from agent-base's fragments; select extra ones with
+The stack is assembled from agent-base's anchors; select extra ones with
 `WITH`:
 
 ```bash

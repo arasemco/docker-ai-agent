@@ -32,7 +32,7 @@ status.
 The daemon log is `/home/agent/.docker/dockerd.log` inside the container. Two
 causes:
 
-- the container was started without the `daemon` fragment (no `/dev/fuse`, no
+- the container was started without the `daemon` anchor (no `/dev/fuse`, no
   seccomp exceptions) — use `make up` or `scripts/compose.sh`;
 - the base image predates agent-base 1.4.0, which adapts `/etc/subuid` when the
   container itself runs under a rootless daemon. Bump `AGENT_BASE`.

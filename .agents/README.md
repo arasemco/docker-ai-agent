@@ -9,7 +9,7 @@ loads the matching `SKILL.md` on demand instead of keeping all of it in context.
 | Skill | Use it when |
 |---|---|
 | [`work-on-the-image`](skills/work-on-the-image/SKILL.md) | changing `image/`, packages, services or a runtime default |
-| [`compose-fragments`](skills/compose-fragments/SKILL.md) | adding or combining compose fragments |
+| [`compose-anchors`](skills/compose-anchors/SKILL.md) | adding or combining compose anchors |
 | [`build-and-publish`](skills/build-and-publish/SKILL.md) | building, versioning or pushing the image |
 | [`run-and-debug`](skills/run-and-debug/SKILL.md) | a stack starts but does not behave |
 | [`child-image`](skills/child-image/SKILL.md) | building another agent image on top of agent-base |
@@ -17,7 +17,7 @@ loads the matching `SKILL.md` on demand instead of keeping all of it in context.
 ## What this repository is
 
 A single Docker image (`image/`) that other repositories build their agent
-images on top of, plus the compose fragments and scripts to run it. There is no
+images on top of, plus the compose anchors and scripts to run it. There is no
 agent CLI in this repository, and there should never be one.
 
 ## Map
@@ -26,10 +26,10 @@ agent CLI in this repository, and there should never be one.
 |---|---|---|
 | `image/Dockerfile` | the image: base, packages, user, s6, entrypoint wiring | yes, but check pinned digests |
 | `image/rootfs/` | files copied into the image (entrypoint, services, cont-init, hooks dir) | yes |
-| `compose/*.yml` | one fragment per concern, keyed `agent-base` | yes, keep them single-purpose |
+| `docker-compose.yml` | anchored sandbox/env/volume sections + one service per stack | yes |
 | `stacks/<name>/image/` | one agent CLI layer per stack (Dockerfile + files) | yes |
 | `stacks/<name>/docs/`, `examples/` | stack-specific documentation and starting points | yes |
-| `docker-compose.yml` | includes every fragment and defines one service per stack with a profile | yes |
+
 | `scripts/bake.sh` | provenance derivation + `docker buildx bake` | carefully |
 | `scripts/smoke.sh` | runtime validation | yes |
 | `docker-bake.hcl` | targets, pinned versions, OCI labels | yes |
@@ -44,10 +44,10 @@ agent CLI in this repository, and there should never be one.
 2. **No `USER` in child images.** `/init` must stay PID 1 as root; services drop
    to the agent user with `/command/s6-setuidgid`. Ending the image with
    `USER 1000:1000` breaks the entrypoint.
-3. **Fragments stay single-purpose.** A fragment may only own the keys its
+3. **Fragments stay single-purpose.** A anchor may only own the keys its
    concern needs. `image.yml` builds; it does not set `command` or mounts.
    `daemon.yml` owns the daemon's devices and volume; nothing else.
-4. **Every fragment declares the volume it mounts.** Otherwise including it
+4. **Every anchor declares the volume it mounts.** Otherwise including it
    fails with `refers to undefined volume`.
 5. **Comments describe behaviour, not history.** No "used to", "we decided",
    "the user asked". State what the code does and why it must.
@@ -66,16 +66,16 @@ version matters.
 `#!/command/with-contenv bash` shebang, plus a `finish` script if it needs
 restart policy. Add it to the `test` stage's shellcheck list in the Dockerfile.
 
-**Add a compose feature.** New file in `compose/`, keyed `agent-base`, owning one
-concern, declaring any volume it mounts, and included from
-`docker-compose.yml`. Document it in `docs/compose.md` and the README table.
+**Add a compose feature.** A new `x-<name>` anchor in `docker-compose.yml` that
+owns one concern, merged into the services that need it, with its knob
+documented in `docs/compose.md` and the README table.
 
 **Add a stack.** `stacks/<name>/image/` with its Dockerfile, a service in
 `docker-compose.yml` with `extends: {service: agent-base}` and
 `profiles: ["<name>"]`, a target in `docker-bake.hcl`, and `PROFILE` support in
 `makefile`/`scripts/smoke.sh`.
 
-**Change a default.** Update the image `ENV`, the fragment that passes it, and
+**Change a default.** Update the image `ENV`, the anchor that passes it, and
 the table in `docs/configuration.md` — in the same commit.
 
 ## Checks before committing

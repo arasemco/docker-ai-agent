@@ -2,7 +2,7 @@
 # Example: a machine-specific compose/local.yml
 # =============================================================================
 # Copy to compose/local.yml (gitignored) and pass it explicitly with -f. It is the place for a deployment's own
-# binds: source trees, read-only shares, a directory that replaces a fragment's
+# binds: source trees, read-only shares, a directory that replaces a anchor's
 # volume.
 #
 # The service key must match the stack being extended:

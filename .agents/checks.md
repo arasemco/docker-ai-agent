@@ -23,9 +23,7 @@ Run from the repository root.
   names ids the parent namespace cannot reach. `cont-init.d/10-prepare` rewrites
   them automatically; if it still fails, check that the rewrite logged a
   `rewrote /etc/subuid ...` line and that `AGENT_SUBID_REMAP` is not `0`.
-- `service "agent-base" refers to undefined volume ...` — a fragment mounts a
-  volume that is not declared. Declare it in the fragment that mounts it.
-- `unable to prepare context: path ".../compose/image" not found` — a relative
-  build context was resolved against the wrong directory; `compose/image.yml`
-  must use `../image`, child stacks `./image`, and the assembler must anchor
-  `--project-directory` to the stack file.
+- `service "..." refers to undefined volume ...` — a service mounts a volume the
+  project does not declare; declare it in the top-level `volumes:` block.
+- `target stage "agent-base" could not be found` — a stack build inherited the
+  base image's build target; each stack names its own stage and sets `target:`.
