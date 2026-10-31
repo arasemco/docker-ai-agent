@@ -3,6 +3,17 @@
 Orientation for a coding agent (or a human in a hurry). Read this before editing;
 it explains the constraints that are not obvious from the files.
 
+Skills for specific jobs live in [`skills/`](skills/): an agent-compatible CLI
+loads the matching `SKILL.md` on demand instead of keeping all of it in context.
+
+| Skill | Use it when |
+|---|---|
+| [`work-on-the-image`](skills/work-on-the-image/SKILL.md) | changing `image/`, packages, services or a runtime default |
+| [`compose-fragments`](skills/compose-fragments/SKILL.md) | adding or combining compose fragments |
+| [`build-and-publish`](skills/build-and-publish/SKILL.md) | building, versioning or pushing the image |
+| [`run-and-debug`](skills/run-and-debug/SKILL.md) | a stack starts but does not behave |
+| [`child-image`](skills/child-image/SKILL.md) | building another agent image on top of agent-base |
+
 ## What this repository is
 
 A single Docker image (`image/`) that other repositories build their agent

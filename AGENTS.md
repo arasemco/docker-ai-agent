@@ -7,6 +7,10 @@ the invariants that are easy to break, and the checks to run. User-facing
 documentation lives in [`docs/`](docs/index.md); this file is only the short
 version.
 
+Task-specific skills are in [`.agents/skills/`](.agents/skills/): load the one
+that matches the job (`work-on-the-image`, `compose-fragments`,
+`build-and-publish`, `run-and-debug`, `child-image`) before starting.
+
 ## Hard rules
 
 1. Do not add a CLI, framework or agent-specific code to this repository. Child
