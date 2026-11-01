@@ -97,8 +97,10 @@ variable "OPENCODE_VERSION" { default = "1.19.5" }
 
 variable "DSH_VERSION" { default = "0.2.1-rc.5" }
 
-// Official Node 22 image, pinned by digest; the dsh stack copies its node and
-// npm because the base image ships Debian's Node 18.
+variable "CLAUDE_VERSION" { default = "2.1.316" }
+
+// Official Node 22 image, pinned by digest; the dsh and claude stacks copy its
+// node and npm because the base image ships Debian's Node 18.
 variable "NODE_REF" {
   default = "docker.io/library/node:22-bookworm-slim@sha256:4b150b48b4116e2a22f2c39cc27025fbf4f153e2078fd3b14d159fdb5c7279da"
 }
@@ -140,7 +142,7 @@ group "default" {
 
 // Every image in the repository, base first.
 group "all" {
-  targets = ["agent-base", "opencode", "dsh"]
+  targets = ["agent-base", "opencode", "dsh", "claude"]
 }
 
 // ---------------------------------------------------------------------------
@@ -278,4 +280,38 @@ target "dsh-test" {
   output          = ["type=cacheonly"]
   secret          = ["type=file,id=dsh_credentials,src=${DSH_CREDENTIALS}"]
   no-cache-filter = ["test"]
+}
+
+// ---------------------------------------------------------------------------
+// claude (Claude Code)
+// ---------------------------------------------------------------------------
+target "claude" {
+  context    = "stacks/claude/image"
+  dockerfile = "Dockerfile"
+  target     = "claude"
+
+  args = {
+    AGENT_BASE     = AGENT_BASE
+    CLAUDE_VERSION = CLAUDE_VERSION
+    NODE_REF       = NODE_REF
+  }
+
+  tags = [
+    image_ref("claude", TAG),
+    image_ref("claude", CLAUDE_VERSION),
+  ]
+
+  labels = oci_labels(
+    "claude",
+    "Claude Code on agent-base: Node 22 from the official image, s6-supervised rootless Docker, interactive CLI",
+    CLAUDE_VERSION,
+    "${AGENT_BASE}",
+  )
+
+  platforms = split(",", PLATFORMS)
+}
+
+target "claude-dev" {
+  inherits = ["claude"]
+  tags     = [image_ref("claude", "dev")]
 }

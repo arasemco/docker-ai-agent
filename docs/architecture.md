@@ -63,9 +63,11 @@ compose `command:`.
 The base image has no CLI, so its run script launches `agent-idle` and keeps the
 sandbox up. A child image replaces the run script with its own line — `opencode
 web --port …` in `stacks/opencode`, `dsh web` in `stacks/deepseek-harness` — and
-that is what s6 supervises. To work with the running agent, use `docker exec`;
-a container `CMD` is a separate foreground command run by s6-overlay after
-services start, not an argument to the CLI.
+that is what s6 supervises. The claude image keeps the idler because Claude Code
+is an interactive TUI with no local server mode; its CLI runs from `make exec`.
+To work with the running agent, use `docker exec`; a container `CMD` is a
+separate foreground command run by s6-overlay after services start, not an
+argument to the CLI.
 
 ## State
 

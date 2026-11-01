@@ -3,6 +3,7 @@
 #
 #   scripts/smoke.sh opencode    # UI answers, CLI version, services, inner daemon
 #   scripts/smoke.sh dsh         # authenticated healthcheck, CLI version, services
+#   scripts/smoke.sh claude      # CLI version, auth status, services, inner daemon
 #
 #   SMOKE_REQUIRE_DOCKER=1       # fail instead of skipping when dockerd is down
 #   SMOKE_REQUIRE_HEALTHCHECK=1  # dsh: fail when the UI was never signed in
@@ -12,8 +13,8 @@ cd "$(dirname "$0")/.."
 
 profile="${1:-opencode}"
 case "$profile" in
-    opencode|dsh) service="$profile" ;;
-    *) echo "usage: $0 [opencode|dsh]" >&2; exit 2 ;;
+    opencode|dsh|claude) service="$profile" ;;
+    *) echo "usage: $0 [opencode|dsh|claude]" >&2; exit 2 ;;
 esac
 
 compose() {
@@ -42,6 +43,17 @@ if [ "$profile" = opencode ]; then
     echo "   HTTP ${code} (401 is expected before sign-in)"
     echo -n "   opencode version: "
     compose exec --no-TTY "$service" opencode --version
+elif [ "$profile" = claude ]; then
+    # The CLI is interactive, so there is no endpoint to probe; prove the
+    # binary works and report whether a credential is configured.
+    echo -n "   claude version: "
+    compose exec --no-TTY --user 1000 "$service" claude --version
+    echo "   auth:"
+    if auth="$(compose exec --no-TTY --user 1000 "$service" claude auth status --text 2>&1)"; then
+        printf '%s\n' "$auth" | sed 's/^/   /'
+    else
+        echo "   not signed in (set ANTHROPIC_API_KEY or CLAUDE_CODE_OAUTH_TOKEN)"
+    fi
 else
     port="${DSH_PORT:-3080}"
     echo "Server reachability (401 expected before sign-in):"

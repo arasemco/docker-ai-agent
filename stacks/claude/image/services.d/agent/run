@@ -1,0 +1,17 @@
+#!/command/with-contenv bash
+# =============================================================================
+# services.d/agent/run — Claude Code's launch line.
+#
+# Claude Code is an interactive TUI with no local server mode, so there is no
+# long-running process to hold the agent service. The service supervises the
+# idler and the CLI runs on demand as the agent user:
+#
+#     make exec PROFILE=claude                     # then: claude
+#     docker compose --profile claude exec --user 1000 claude claude
+#
+# Unattended use is `claude -p`; a subscription account can start
+# `claude remote-control` in an exec session.
+# =============================================================================
+set -euo pipefail
+
+exec /usr/local/bin/agent-service-start /usr/local/bin/agent-idle

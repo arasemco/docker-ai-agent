@@ -30,9 +30,10 @@ What the agent service runs is decided by the image, not by the compose file and
 not by an environment variable: `/etc/services.d/agent/run` names the executable
 and its arguments, then calls `agent-service-start`. The base image launches
 `agent-idle`; the OpenCode and dsh images launch their CLI (`opencode web …`,
-`dsh web`). A container `CMD` is not forwarded to the CLI: s6-overlay runs it as
-a one-off foreground command once the services are up, then halts the container.
-Use `docker exec` to work with the running agent.
+`dsh web`). The claude image launches the idler because Claude Code is an
+interactive TUI; run it from `make exec`. A container `CMD` is not forwarded to
+the CLI: s6-overlay runs it as a one-off foreground command once the services are
+up, then halts the container. Use `docker exec` to work with the running agent.
 
 ## Proxy
 

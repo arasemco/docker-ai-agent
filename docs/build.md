@@ -63,8 +63,8 @@ On every push and pull request it:
 1. resolves the registry (`<gitea host>/<owner>`) and the commit metadata;
 2. builds the base image's `test` stage (shellcheck plus the tool matrix);
 3. on pushes and tags: logs in, builds and pushes `agent-base`;
-4. then builds and pushes `opencode` and `dsh`, which build `FROM` the tag the
-   previous step just pushed.
+4. then builds and pushes `opencode`, `dsh` and `claude`, which build `FROM` the
+   tag the previous step just pushed.
 
 Pull requests run the same builds without logging in and without pushing, so a
 broken Dockerfile or script fails the check and nothing is published.
@@ -106,4 +106,5 @@ service, which a self-hosted forge does not provide.
 ### Image publishing
 
 Each run pushes two tags per image: the version tag from the bake file
-(`BASE_VERSION`, `OPENCODE_VERSION`, `DSH_VERSION`) and `latest`.
+(`BASE_VERSION`, `OPENCODE_VERSION`, `DSH_VERSION`, `CLAUDE_VERSION`) and
+`latest`.

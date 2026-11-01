@@ -11,6 +11,7 @@ agent CLI per stack:
 |---|---|
 | [`stacks/opencode`](stacks/opencode/README.md) | the OpenCode CLI and Web UI on a published loopback port |
 | [`stacks/deepseek-harness`](stacks/deepseek-harness/README.md) | the DeepSeek Harness (`dsh`) Web UI, reachable through host networking |
+| [`stacks/claude`](stacks/claude/README.md) | the Claude Code CLI, run on demand from `make exec` (interactive TUI, no local UI) |
 
 Each stack runs behind its own compose profile, so `--profile <name> up`
 starts exactly one; the shared sandbox anchors are merged into every stack.
@@ -25,6 +26,7 @@ cp .env.example .env
 
 make up PROFILE=opencode          # build base + opencode, start the Web UI
 make up PROFILE=dsh               # build base + dsh, start its Web UI
+make up PROFILE=claude            # build base + claude, then: make exec PROFILE=claude
 ```
 
 Equivalently, without the makefile:

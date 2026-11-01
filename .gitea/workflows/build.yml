@@ -8,6 +8,7 @@
 #   agent-base:<version> + :latest
 #   opencode:<version>    + :latest
 #   dsh:<version>         + :latest
+#   claude:<version>      + :latest
 #
 # Required repository secret:
 #   GIT_TOKEN   a Gitea access token with the "write:package" scope, created by
@@ -128,5 +129,5 @@ jobs:
       - name: Build and push the stacks
         uses: docker/bake-action@v7
         with:
-          targets: opencode,dsh
+          targets: opencode,dsh,claude
           push: ${{ github.event_name != 'pull_request' }}

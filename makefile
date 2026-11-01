@@ -6,6 +6,7 @@
 #   make build-all                     # base image, then every stack
 #   make up PROFILE=opencode           # default profile
 #   make up PROFILE=dsh
+#   make up PROFILE=claude
 #   make smoke PROFILE=dsh
 PROFILE   ?= opencode
 SHELL_BIN ?= bash
@@ -29,7 +30,7 @@ default:
 	@echo "  make debug              shell in the service as root"
 	@echo "  make config             print the merged compose config"
 	@echo ""
-	@echo "  PROFILE=opencode|dsh   (currently: $(PROFILE))"
+	@echo "  PROFILE=opencode|dsh|claude   (currently: $(PROFILE))"
 
 # The base image must exist before a stack builds FROM it, so the two runs are
 # sequential rather than one parallel bake.
@@ -38,12 +39,13 @@ build:
 	@case "$(PROFILE)" in \
 		opencode) scripts/bake.sh opencode ;; \
 		dsh) scripts/bake.sh dsh ;; \
+		claude) scripts/bake.sh claude ;; \
 		*) echo "unknown PROFILE=$(PROFILE)"; exit 1 ;; \
 	esac
 
 build-all:
 	scripts/bake.sh agent-base
-	scripts/bake.sh opencode dsh
+	scripts/bake.sh opencode dsh claude
 
 test:
 	scripts/bake.sh test

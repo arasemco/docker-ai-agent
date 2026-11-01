@@ -87,7 +87,7 @@ shellcheck image/rootfs/usr/local/bin/* image/rootfs/usr/local/lib/agent-base/*.
            image/rootfs/etc/services.d/*/run image/rootfs/etc/services.d/*/finish
 scripts/bake.sh test          # image builds; shellcheck + tool matrix inside
 make smoke                    # real container: services, health, tools
-for p in base opencode dsh; do docker compose --profile "$p" config >/dev/null; done
+for p in base opencode dsh claude; do docker compose --profile "$p" config >/dev/null; done
 ```
 
 `make smoke` waits for the inner daemon and proves storage with an offline

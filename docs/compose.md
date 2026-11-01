@@ -41,8 +41,9 @@ service (`stacks/<name>/image/services.d/agent/run`), so `docker compose
 --profile <name> up` starts exactly what the image says it starts. A runtime
 `command:` is not the launch line either: s6-overlay runs the container `CMD` as
 a separate foreground command after the services start. The image is the only
-place the agent's launch line lives. The `base` profile keeps the sandbox up
-because the base image's agent service launches `agent-idle`.
+place the agent's launch line lives. The `base` profile and the interactive
+`claude` stack keep the sandbox up because their agent service launches
+`agent-idle`.
 
 ## Profiles
 
@@ -51,6 +52,7 @@ Each service has its own profile, so exactly one stack starts:
 ```bash
 docker compose --profile opencode up -d      # OpenCode Web UI
 docker compose --profile dsh up -d           # dsh Web UI (host networking)
+docker compose --profile claude up -d        # Claude Code (interactive, via exec)
 docker compose --profile base up -d          # sandbox only, no agent CLI
 make up PROFILE=dsh
 docker compose --profile opencode config     # what a profile resolves to

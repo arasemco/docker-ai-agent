@@ -42,7 +42,8 @@ mount point when it can.
 The `agent` service ran the image's launch line and it returned; when it exits
 cleanly, the container stops. The base image's line is the idle helper, so it
 stays up; a stack's line is its CLI (`opencode web`, `dsh web`), and a fast
-crash there is a CLI problem, not a compose one. Check the `[agent]` log line
+crash there is a CLI problem, not a compose one. The claude image also uses the
+idle helper, because its CLI is an interactive TUI. Check the `[agent]` log line
 and, for a stack, `image/services.d/agent/run`. A container `CMD` is run by s6
 as a one-off foreground command after the services start, so it cannot stand in
 for the launch line.

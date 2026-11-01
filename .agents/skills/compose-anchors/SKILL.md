@@ -66,7 +66,7 @@ with `-f`. `examples/compose/local.yml` is a starting point.
 
 ```bash
 docker compose config >/dev/null
-for p in base opencode dsh; do docker compose --profile "$p" config >/dev/null; done
+for p in base opencode dsh claude; do docker compose --profile "$p" config >/dev/null; done
 make config PROFILE=opencode
 scripts/smoke.sh opencode                   # running stack
 ```

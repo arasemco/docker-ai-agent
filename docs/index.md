@@ -24,6 +24,7 @@ Each stack has its own documentation next to its image:
 |---|---|
 | OpenCode | [stacks/opencode/docs/index.md](../stacks/opencode/docs/index.md) |
 | DeepSeek Harness | [stacks/deepseek-harness/docs/index.md](../stacks/deepseek-harness/docs/index.md) |
+| Claude Code | [stacks/claude/docs/index.md](../stacks/claude/docs/index.md) |
 
 ## The one-paragraph version
 
@@ -34,9 +35,10 @@ answers) and `agent` (waits for that, then runs the launch line named by its
 run script). `docker-compose.yml` defines the shared sandbox as YAML anchors and
 one service per stack, behind a profile; `docker compose --profile <name> up`
 starts exactly one stack. A stack image needs `FROM`, its CLI, and its own
-`services.d/agent/run` naming the executable — the compose file carries no
-`command:`; s6 runs a container `CMD` as a separate foreground command, not as
-the CLI's arguments.
+`services.d/agent/run` naming the executable — the idler when the CLI is
+interactive, as in `stacks/claude` — and the compose file carries no `command:`;
+s6 runs a container `CMD` as a separate foreground command, not as the CLI's
+arguments.
 
 ## Conventions used throughout
 

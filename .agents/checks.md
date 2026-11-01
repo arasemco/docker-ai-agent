@@ -9,8 +9,8 @@ Run from the repository root.
 | Bake file syntax | `scripts/bake.sh --print >/dev/null` | exit 0, JSON printed |
 | Provenance | `scripts/bake.sh --print \| grep image.source` | derived URL, or `unknown` without a remote |
 | Compose: default | `docker compose config >/dev/null` | exit 0 |
-| Compose: profiles | `for p in base opencode dsh; do docker compose --profile "$p" config >/dev/null; done` | exit 0 |
-| Build all images | `make build-all` | agent-base, opencode and dsh tagged |
+| Compose: profiles | `for p in base opencode dsh claude; do docker compose --profile "$p" config >/dev/null; done` | exit 0 |
+| Build all images | `make build-all` | agent-base, opencode, dsh and claude tagged |
 | Image build + unit checks | `scripts/bake.sh test` | `PASSED` |
 | Runtime | `make smoke` | `OK — agent-base built, running, and healthy` |
 | Runtime, daemon mandatory | `SMOKE_REQUIRE_DOCKER=1 make smoke` | same, with `daemon ... responds`, `storage driver fuse-overlayfs`, `docker build (FROM scratch) works` |
