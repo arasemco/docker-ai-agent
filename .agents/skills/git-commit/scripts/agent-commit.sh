@@ -15,9 +15,9 @@
 # the repository's own identity is never modified.
 #
 # Usage:
-#   scripts/agent-commit.sh --model DeepSeek-V4.1-Flash-1017 -m "Add the thing"
-#   scripts/agent-commit.sh --model claude-sonnet-4-5 --autonomous -m "..."
-#   scripts/agent-commit.sh --model qwen3.5:9b --vendor noreply@localhost -m "..."
+#   agent-commit.sh --model DeepSeek-V4.1-Flash-1017 -m "Add the thing"
+#   agent-commit.sh --model claude-sonnet-4-5 --autonomous -m "..."
+#   agent-commit.sh --model qwen3.5:9b --vendor noreply@localhost -m "..."
 #
 # Any argument other than --model/--vendor/--autonomous is passed to git commit.
 # =============================================================================
@@ -30,7 +30,7 @@ die() {
 
 usage() {
     cat <<'EOF'
-usage: scripts/agent-commit.sh --model <model-id> [--vendor <email>] [--autonomous]
+usage: agent-commit.sh --model <model-id> [--vendor <email>] [--autonomous]
                                [git commit args]
 
   --model ID      the exact provider build that did the work, verbatim as the
@@ -51,8 +51,8 @@ Vendor emails derived from the model id:
 Anything else needs --vendor (for example --vendor noreply@localhost).
 
 Examples:
-  scripts/agent-commit.sh --model DeepSeek-V4.1-Flash-1017 -m "Add the Claude Code stack"
-  scripts/agent-commit.sh --model DeepSeek-V4.1-Flash-1017 --autonomous -m "Refresh deps"
+  agent-commit.sh --model DeepSeek-V4.1-Flash-1017 -m "Add the Claude Code stack"
+  agent-commit.sh --model DeepSeek-V4.1-Flash-1017 --autonomous -m "Refresh deps"
 
 Any other argument is passed to `git commit`.
 EOF

@@ -85,11 +85,6 @@ x-agent-env: &agent-env
 # recreate.
 x-docker: &docker-volume "${AGENT_DOCKER_VOLUME:-agent-docker}:/home/agent/.local/share/docker"
 
-# Agent Skills are directories holding a SKILL.md; agent-compatible CLIs read
-# them from ~/.agents/skills. Read-only, so a skill cannot rewrite the shared
-# library from inside a container.
-x-skills: &skills-volume "${AGENT_SKILLS_HOST:-${PWD}/skills}:/home/agent/.agents/skills:ro"
-
 services:
   # -------------------------------------------------------------------------
   # Sandbox only: the base image ships no agent CLI, so its agent service
@@ -114,7 +109,6 @@ services:
       <<: *agent-env
     volumes:
       - *docker-volume
-      - *skills-volume
 
   # -------------------------------------------------------------------------
   # OpenCode — Web UI on a published loopback port.
@@ -147,7 +141,6 @@ services:
       OLLAMA_API_KEY: "${OLLAMA_API_KEY:-}"
     volumes:
       - *docker-volume
-      - *skills-volume
       # Named volumes inherit the agent user's ownership from the image; point a
       # *_HOST variable at a host path (uid 1000) to bind instead.
       - ${OPENCODE_CONFIG_HOST:-opencode-config}:/home/agent/.config/opencode
@@ -186,7 +179,6 @@ services:
       DSH_DOCKERD: "${DSH_DOCKERD:-1}"
     volumes:
       - *docker-volume
-      - *skills-volume
       # Profiles, credentials (the API key written by Settings -> Models) and
       # session history.
       - ${DSH_HOME_HOST:-dsh-home}:/home/agent/.dsh
@@ -219,7 +211,6 @@ services:
       CLAUDE_CODE_OAUTH_TOKEN: "${CLAUDE_CODE_OAUTH_TOKEN:-}"
     volumes:
       - *docker-volume
-      - *skills-volume
       # Settings, credentials, transcripts and .claude.json, all under
       # CLAUDE_CONFIG_DIR.
       - ${CLAUDE_HOME_HOST:-claude-home}:/home/agent/.claude
