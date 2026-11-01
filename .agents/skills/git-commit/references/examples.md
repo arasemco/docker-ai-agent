@@ -65,6 +65,28 @@ git -c user.name="DeepSeek-V4.1-Flash-1017" \
     -c user.email="noreply@deepseek.com" commit -m "..."
 ```
 
+## Mini logical commits
+
+Stage and commit one intent at a time; each commit gets its own attribution:
+
+```bash
+git status
+git diff
+
+# first intent: the fix
+git add -p
+.agents/skills/git-commit/scripts/agent-commit.sh \
+    --model DeepSeek-V4.1-Flash-1017 -m "fix: ..."
+
+# second intent: its documentation, committed separately
+git add README.md
+.agents/skills/git-commit/scripts/agent-commit.sh \
+    --model DeepSeek-V4.1-Flash-1017 -m "docs: ..."
+```
+
+Do not `git add -A` a tree that mixes intents; the per-commit attribution is
+part of the point.
+
 ## Verify
 
 ```bash

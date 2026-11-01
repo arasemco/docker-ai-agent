@@ -43,3 +43,5 @@ that commit human-directed even if earlier ones were autonomous, and vice versa.
   vendor from the model id.
 - The wrapper does not duplicate a `Co-authored-by` trailer that is already in
   the message, so a CLI that adds its own line is safe.
+- More than one model in a commit: split it by model. If it cannot be split, add
+  a second `Co-authored-by` trailer manually — the wrapper adds only its own.
