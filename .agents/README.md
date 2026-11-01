@@ -90,6 +90,10 @@ make smoke                    # real container: services, health, tools
 for p in base opencode dsh claude; do docker compose --profile "$p" config >/dev/null; done
 ```
 
+Commit through `scripts/agent-commit.sh` so the model that did the work is
+recorded as co-author (human-directed) or author (autonomous); see
+[AGENTS.md](../AGENTS.md#commit-attribution).
+
 `make smoke` waits for the inner daemon and proves storage with an offline
 build; `SMOKE_REQUIRE_DOCKER=1 make smoke` makes a missing daemon a failure. The
 daemon works nested (a container inside a rootless daemon) because
