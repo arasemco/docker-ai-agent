@@ -28,7 +28,7 @@ make debug      # shell as root
 ```
 
 `make up` builds and starts the stack; the sandbox devices, seccomp options,
-limits and mounts come from the shared compose anchors merged into the service.
+limits and mounts come from the shared `common` service the stack extends.
 
 ## How it is put together
 
@@ -37,7 +37,7 @@ limits and mounts come from the shared compose anchors merged into the service.
 | base image (Debian, agent user, s6 services, dockerd, toolchain) | `AGENT_BASE` build arg, default `agent-base:1.5.0` |
 | OpenCode | `npm install -g opencode-ai@${OPENCODE_VERSION}` in `image/Dockerfile` |
 | launch line (`opencode web ...`) | `image/services.d/agent/run` |
-| sandbox (devices, seccomp, proxy, limits, mounts, skills) | the shared compose anchors in `docker-compose.yml` |
+| sandbox (devices, seccomp, proxy, limits, mounts, skills) | the shared `common` service in `compose.common.yml` |
 | s6 services, hooks, healthcheck, restart policy | agent-base |
 
 State lives under `/home/agent`:

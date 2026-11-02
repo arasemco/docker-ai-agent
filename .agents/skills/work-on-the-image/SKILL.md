@@ -42,9 +42,9 @@ package change does not invalidate the toolchain layer.
 `#!/command/with-contenv bash`, plus `finish` when it needs restart policy.
 Add both to the `test` stage's shellcheck list in `image/Dockerfile`.
 
-**Runtime default.** Set it in the image `ENV`, pass it from the anchor that
-owns it (the `x-sandbox` anchor or the specific anchor), and update
-`docs/configuration.md` in the same commit.
+**Runtime default.** Set it in the image `ENV`, pass it from
+`compose.common.yml` when every stack needs it (or the stack service that owns
+it), and update `docs/configuration.md` in the same commit.
 
 **Node version.** Debian bookworm provides 18.20. Do not add a second Node to
 the base; a CLI that needs newer installs its own in the child image.

@@ -1,37 +1,39 @@
 # Compose model
 
-## One file, anchored sections
+## One project, a shared common service
 
-There is a single `docker-compose.yml`. The shared parts are defined once as
-YAML anchors, grouped by concern, and each service merges the ones it needs:
-
-| Anchor | Concern | Knobs |
-|---|---|---|
-| `x-sandbox` | `init`/tty/restart, seccomp exceptions, `/dev/fuse` + `/dev/net/tun`, resource limits | `AGENT_HOSTNAME`, `AGENT_CPUS`, `AGENT_MEMORY` |
-| `x-agent-env` | `AGENT_*` toggles and proxy resolution, merged into each service's `environment` | `AGENT_DOCKERD*`, `AGENT_RESTART_MAX`, `PROXY`/`HTTP_PROXY`/`HTTPS_PROXY`/`ALL_PROXY`/`NO_PROXY` |
-| `x-docker` | the inner daemon's data volume | `AGENT_DOCKER_VOLUME` |
-| `x-skills` | the shared Agent Skills root, read-only | `AGENT_SKILLS_HOST` |
-
-One file avoids `extends:`: reaching a differently named service with `extends`
-also inherits the parent's profile and build target, which makes `--profile base`
-start every stack and breaks stack builds with
-`target stage "agent-base" could not be found`.
-
-YAML merges mappings, not lists, so a service merges the mapping anchor and
-lists the volume anchors it needs:
+`docker-compose.yml` holds one service per stack. The shared sandbox,
+environment and daemon volume live in `compose.common.yml` as the `common`
+service, and every stack extends it:
 
 ```yaml
 opencode:
   profiles: ["opencode"]
-  <<: *sandbox
+  extends: {file: ./compose.common.yml, service: common}
+  build: { context: ./stacks/opencode/image, target: opencode }
   environment:
-    <<: *agent-env
     OPENCODE_SERVER_PASSWORD: "${OPENCODE_SERVER_PASSWORD:-changeme123}"
-  volumes:
-    - *docker-volume
-    - *skills-volume
-    - ${OPENCODE_CONFIG_HOST:-opencode-config}:/home/agent/.config/opencode
 ```
+
+`compose.common.yml` is not part of the project: it is only a source for
+`extends.file`, so it is never started.
+
+| Common service owns | Knobs |
+|---|---|
+| `init`/tty/restart, seccomp exceptions, `/dev/fuse` + `/dev/net/tun`, resource limits | `AGENT_HOSTNAME`, `AGENT_CPUS`, `AGENT_MEMORY` |
+| `AGENT_*` toggles and proxy resolution, merged into each stack's `environment` | `AGENT_DOCKERD*`, `AGENT_RESTART_MAX`, `PROXY`/`HTTP_PROXY`/`HTTPS_PROXY`/`ALL_PROXY`/`NO_PROXY` |
+| the inner daemon's data volume | `AGENT_DOCKER_VOLUME` |
+
+The common service is separate because a same-file parent also passes on its
+`profiles` and build target: `--profile base` would select every stack, and
+stack builds would inherit the base image's target. A profile-less,
+image-less `common` service cannot leak either.
+
+`extends` merges mappings and appends sequences, so a stack inherits the
+environment and the daemon volume (keyed by target) and adds only its own
+build, ports, credentials and state volumes. The named volume is declared once
+in `docker-compose.yml`, because `extends` copies service config, not the
+top-level `volumes:` block.
 
 ## No commands in the compose file
 
@@ -60,8 +62,8 @@ docker compose --profile opencode config     # what a profile resolves to
 
 ## Relative paths
 
-Build contexts are relative to this file's directory, so `image` and
-`stacks/<name>/image` mean exactly what they say.
+Build contexts are relative to `docker-compose.yml`: `./image` for the base,
+`./stacks/<name>/image` for a stack.
 
 ## Local overrides
 

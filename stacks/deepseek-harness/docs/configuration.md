@@ -19,7 +19,7 @@ Everything is optional; the defaults work with no configuration.
 | `DSH_HOME_HOST` | `dsh-home` | volume or host path mounted at `DSH_HOME` |
 
 The sandbox has its own switches (`AGENT_DOCKERD`, `AGENT_HEALTHCHECK`,
-`AGENT_CPUS`, `AGENT_SKILLS_HOST`, proxy variables…), documented in
+`AGENT_CPUS`, proxy variables…), documented in
 [agent-base's configuration reference](../../../docs/configuration.md).
 
 ## Host networking

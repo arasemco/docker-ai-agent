@@ -17,12 +17,11 @@ All variables are optional; every default works with no configuration.
 | `AGENT_UID` / `AGENT_GID` | `1000` | build | uid/gid of that account |
 | `XDG_RUNTIME_DIR` | `$HOME/.docker/run` | daemon | daemon socket directory |
 | `DOCKER_HOST` | `unix://$XDG_RUNTIME_DIR/docker.sock` | docker clients | daemon socket |
-| `AGENT_DOCKER_VOLUME` | `agent-docker` | `x-docker` | volume (or host path) for daemon data |
-| `AGENT_CPUS` / `AGENT_MEMORY` | `2` / `4G` | `x-sandbox` | container limits |
-| `AGENT_SKILLS_HOST` | `${PWD}/skills` | `x-skills` | host directory mounted as the shared skills root |
-| `AGENT_HOSTNAME` | `agent` | `x-sandbox` | container hostname |
+| `AGENT_DOCKER_VOLUME` | `agent-docker` | `compose.common.yml` | volume (or host path) for daemon data |
+| `AGENT_CPUS` / `AGENT_MEMORY` | `2` / `4G` | `compose.common.yml` | container limits |
+| `AGENT_HOSTNAME` | `agent` | `compose.common.yml` | container hostname |
 | `AGENT_SUBID_REMAP` | `1` | `cont-init.d/10-prepare` | rewrite `/etc/subuid`/`subgid` into the ids this container can reach |
-| `PROXY`, `HTTP_PROXY`, `HTTPS_PROXY`, `ALL_PROXY`, `NO_PROXY`, `http_proxy`, `https_proxy`, `all_proxy`, `no_proxy` | – | `x-agent-env` | see [Proxy](#proxy) |
+| `PROXY`, `HTTP_PROXY`, `HTTPS_PROXY`, `ALL_PROXY`, `NO_PROXY`, `http_proxy`, `https_proxy`, `all_proxy`, `no_proxy` | – | `compose.common.yml` | see [Proxy](#proxy) |
 
 ## Launch line
 
@@ -37,7 +36,7 @@ up, then halts the container. Use `docker exec` to work with the running agent.
 
 ## Proxy
 
-The `x-agent-env` anchor resolves each proxy variable itself, first match wins:
+`compose.common.yml` resolves each proxy variable itself, first match wins:
 
 ```
 HTTP_PROXY   -> http_proxy  -> PROXY -> (empty)
@@ -64,12 +63,11 @@ scheme-specific variables empty.
 
 ## Volumes
 
-| Anchor | Volume | Target |
+| Source | Volume | Target |
 |---|---|---|
-| `x-docker` | `agent-docker` | `/home/agent/.local/share/docker` |
-| `x-skills` | `AGENT_SKILLS_HOST` (default `./skills`) | `/home/agent/.agents/skills`, read-only |
+| `compose.common.yml` | `agent-docker` | `/home/agent/.local/share/docker` |
 
-The workspace stays inside the container: no anchor binds a host directory
+The workspace stays inside the container: no service binds a host directory
 onto it. A child stack adds its own config/state volumes in its compose file.
 
 ## Skills
@@ -79,17 +77,21 @@ Agent Skills are directories holding a `SKILL.md` (YAML frontmatter with
 CLIs discover them under `~/.agents/skills` and their tool-specific paths, and
 load the body on demand through their `skill` tool.
 
-The image creates `/home/agent/.agents/skills` owned by the agent user. The
-`x-skills` anchor mounts a host directory there read-only, so one library serves
-every agent container:
+The image creates `/home/agent/.agents/skills` owned by the agent user. A local
+override can bind a host library there read-only, so one library serves every
+agent container:
 
-```bash
-AGENT_SKILLS_HOST=~/skills docker compose --profile opencode up -d
+```yaml
+# compose/local.yml
+services:
+  opencode:
+    volumes:
+      - ~/.agents/skills:/home/agent/.agents/skills:ro
 ```
 
 Read-only is deliberate: a skill may execute its scripts, but it should not
-rewrite the shared library from inside a container. Drop the `:ro` in
-the `x-skills` anchor to allow edits through the agent.
+rewrite the shared library from inside a container. Drop the `:ro` in the local
+override to allow edits through the agent.
 
 A child image can also ship skills of its own by copying them into
 `/home/agent/.agents/skills`.

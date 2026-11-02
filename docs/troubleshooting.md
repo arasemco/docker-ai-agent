@@ -7,7 +7,7 @@ The daemon service logs why; read `/home/agent/.docker/dockerd.log`.
 | Symptom in the log | Cause | Fix |
 |---|---|---|
 | `newuidmap: write to uid_map failed: Operation not permitted` | `/etc/subuid` names ids the parent namespace cannot reach — typical when the container itself runs under a rootless daemon | automatic: `cont-init.d/10-prepare` rewrites the ranges; `AGENT_SUBID_REMAP=0` disables that |
-| `failed to setup UID/GID map` / rootlesskit errors | the container lacks `seccomp:unconfined`, `systempaths=unconfined` or the devices | use `make up` (every service merges `x-sandbox`), or add those settings |
+| `failed to setup UID/GID map` / rootlesskit errors | the container lacks `seccomp:unconfined`, `systempaths=unconfined` or the devices | use `make up` (every service extends the common service), or add those settings |
 | `permission denied` on `/dev/fuse` | `/dev/fuse` not passed through | add the device |
 
 **Why the id ranges matter.** `newuidmap` resolves a user's subordinate ids by
@@ -61,8 +61,9 @@ the published port in `.env` (`OPENCODE_PORT`-style variables in child stacks).
 
 ## `refers to undefined volume`
 
-An anchor mounts a volume that the project's top-level `volumes:` block does not
-declare. A child stack must declare the volumes its own compose file uses.
+A service (or `compose.common.yml` through `extends`) mounts a volume that the
+project's top-level `volumes:` block does not declare. A child stack must
+declare every named volume its own service uses.
 
 ## Compose project name surprises
 

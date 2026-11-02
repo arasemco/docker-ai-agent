@@ -9,7 +9,7 @@ loads the matching `SKILL.md` on demand instead of keeping all of it in context.
 | Skill | Use it when |
 |---|---|
 | [`work-on-the-image`](skills/work-on-the-image/SKILL.md) | changing `image/`, packages, services or a runtime default |
-| [`compose-anchors`](skills/compose-anchors/SKILL.md) | adding or combining compose anchors |
+| [`compose-stacks`](skills/compose-stacks/SKILL.md) | changing the shared sandbox or adding a stack |
 | [`build-and-publish`](skills/build-and-publish/SKILL.md) | building, versioning or pushing the image |
 | [`run-and-debug`](skills/run-and-debug/SKILL.md) | a stack starts but does not behave |
 | [`child-image`](skills/child-image/SKILL.md) | building another agent image on top of agent-base |
@@ -17,8 +17,8 @@ loads the matching `SKILL.md` on demand instead of keeping all of it in context.
 ## What this repository is
 
 A single Docker image (`image/`) that other repositories build their agent
-images on top of, plus the compose anchors and scripts to run it. There is no
-agent CLI in this repository, and there should never be one.
+images on top of, plus the shared compose service and scripts to run it. There
+is no agent CLI in this repository, and there should never be one.
 
 ## Map
 
@@ -26,7 +26,8 @@ agent CLI in this repository, and there should never be one.
 |---|---|---|
 | `image/Dockerfile` | the image: base, packages, user, s6, service wiring | yes, but check pinned digests |
 | `image/rootfs/` | files copied into the image (service launcher, services, cont-init, hooks dir) | yes |
-| `docker-compose.yml` | anchored sandbox/env/volume sections + one service per stack | yes |
+| `docker-compose.yml` | one service per stack; each extends the common service | yes |
+| `compose.common.yml` | the shared sandbox, environment and daemon volume | yes |
 | `stacks/<name>/image/` | one agent CLI layer per stack (Dockerfile + files) | yes |
 | `stacks/<name>/docs/`, `examples/` | stack-specific documentation and starting points | yes |
 
@@ -40,16 +41,16 @@ agent CLI in this repository, and there should never be one.
 
 1. **Generic core.** No host names, IPs, registry paths, personal paths or
    project names outside `examples/`. Verify:
-   `grep -rniE "asemo|omesa|[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+|/home/[a-z]+/" image docker-compose.yml scripts docker-bake.hcl makefile README.md`
+   `grep -rniE "asemo|omesa|[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+|/home/[a-z]+/" image docker-compose.yml compose.common.yml scripts docker-bake.hcl makefile README.md`
 2. **No `USER` in child images.** `/init` must stay PID 1 as root; services drop
    to the agent user with `/command/s6-setuidgid`. Ending the image with
    `USER 1000:1000` breaks the s6 supervision tree.
-3. **Anchors stay single-purpose.** An anchor may only own the keys its
-   concern needs: `x-sandbox` holds devices, seccomp and limits;
-   `x-agent-env` holds the environment; `x-docker` and `x-skills` hold their
-   own volumes. A service adds its own build, ports and credentials.
-4. **Every anchor declares the volume it mounts.** Otherwise including it
-   fails with `refers to undefined volume`.
+3. **The common service stays single-purpose.** `compose.common.yml` owns the
+   sandbox, environment and daemon volume; a stack service adds only its own
+   build, ports, credentials and state volumes.
+4. **Every volume the common service mounts is declared in
+   `docker-compose.yml`.** `extends` copies service config, not the top-level
+   `volumes:` block.
 5. **Comments describe behaviour, not history.** No "used to", "we decided",
    "the user asked". State what the code does and why it must.
 6. **Pinned inputs stay pinned.** Base digest, s6 version + sha256, CLI/engine
@@ -67,17 +68,18 @@ version matters.
 `#!/command/with-contenv bash` shebang, plus a `finish` script if it needs
 restart policy. Add it to the `test` stage's shellcheck list in the Dockerfile.
 
-**Add a compose feature.** A new `x-<name>` anchor in `docker-compose.yml` that
-owns one concern, merged into the services that need it, with its knob
-documented in `docs/compose.md` and the README table.
+**Add a compose feature.** Add it to the `common` service in
+`compose.common.yml` when every stack needs it, otherwise to the stack service
+that does. Document the knob in `docs/compose.md` and the README table.
 
 **Add a stack.** `stacks/<name>/image/` with its Dockerfile, a service in
-`docker-compose.yml` with `extends: {service: agent-base}` and
+`docker-compose.yml` with
+`extends: {file: ./compose.common.yml, service: common}` and
 `profiles: ["<name>"]`, a target in `docker-bake.hcl`, and `PROFILE` support in
 `makefile`/`scripts/smoke.sh`.
 
-**Change a default.** Update the image `ENV`, the anchor that passes it, and
-the table in `docs/configuration.md` — in the same commit.
+**Change a default.** Update the image `ENV`, the common service that passes it,
+and the table in `docs/configuration.md` — in the same commit.
 
 ## Checks before committing
 

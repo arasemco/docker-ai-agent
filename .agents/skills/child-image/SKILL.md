@@ -1,6 +1,6 @@
 ---
 name: child-image
-description: Build a new agent image on top of agent-base — install the CLI, own its state directories, ship its s6 launch line, and wire a compose stack onto the shared anchors. Use when adding support for another agent CLI or restructuring an existing child stack.
+description: Build a new agent image on top of agent-base — install the CLI, own its state directories, ship its s6 launch line, and wire a compose stack onto the shared common service. Use when adding support for another agent CLI or restructuring an existing child stack.
 metadata:
   area: consumer
   files: examples/child-image/
@@ -69,8 +69,9 @@ Rules:
 ```yaml
 services:
   my-cli:
+    profiles: ["my-cli"]
+    extends: {file: ./compose.common.yml, service: common}
     image: my-cli:local
-    pull_policy: build
     build:
       context: ./image
       args:
@@ -81,13 +82,13 @@ services:
     volumes:
       - ${MY_CLI_HOME_HOST:-my-cli-home}:/home/agent/.config/my-cli
 volumes:
-  agent-docker:                          # mounted by the x-docker anchor
+  agent-docker:                          # declared by the extending project
   my-cli-home:
 ```
 
-Stand alone by copying the shared anchors (`x-sandbox`, `x-agent-env`,
-`x-docker`, `x-skills`) from this repository's `docker-compose.yml`, or add the
-stack here under `stacks/<name>/` with a service that merges them and its own
+Stand alone by copying `compose.common.yml` (the `common` service: sandbox,
+environment and daemon volume) into the composing project, or add the stack
+here under `stacks/<name>/` with a service that extends it and its own
 `profiles:` entry.
 
 ## Runtime expectations inherited from agent-base

@@ -53,7 +53,7 @@ intends. This is Linux-only; on Docker Desktop run dsh on the host instead. See
 | launch line (`dsh web`) | `image/services.d/agent/run` |
 | flag translation (`DSH_*` → `dsh web` options) | `image/hooks/20-dsh-flags.sh`, sourced by agent-run |
 | healthcheck | `image/healthcheck.mjs` (signed session cookie, expects 200) |
-| sandbox settings (devices, seccomp, proxy, limits, mounts, skills) | the shared compose anchors in `docker-compose.yml` |
+| sandbox settings (devices, seccomp, proxy, limits, mounts, skills) | the shared `common` service in `compose.common.yml` |
 
 State lives in the `dsh-home` volume (`/home/agent/.dsh`): profiles, credentials
 written by the UI, and session history.

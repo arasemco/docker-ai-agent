@@ -14,7 +14,8 @@ agent CLI per stack:
 | [`stacks/claude`](stacks/claude/README.md) | the Claude Code CLI, run on demand from `make exec` (interactive TUI, no local UI) |
 
 Each stack runs behind its own compose profile, so `--profile <name> up`
-starts exactly one; the shared sandbox anchors are merged into every stack.
+starts exactly one; the shared sandbox is extended from `compose.common.yml`
+by every stack.
 
 Nothing in the shared parts is host-, person- or project-specific: no registry,
 no proxy, no host paths, no resource limits, no author metadata.
@@ -37,14 +38,14 @@ docker compose --profile opencode config  # see what a profile resolves to
 ```
 
 Everything is optional: every value in `.env.example` is a default, and the
-compose anchors read their knobs from the environment.
+common service reads its knobs from the environment.
 
 ## How it is put together
 
 ```
 image/                 the base image (Dockerfile + rootfs/)
-docker-compose.yml     one file: anchored sandbox/env/volume sections plus one
-                       service per stack, each behind a profile
+compose.common.yml     shared sandbox/env/volume, extended by every stack
+docker-compose.yml     one service per stack, each behind a profile
 stacks/<name>/         image/ (Dockerfile + files), docs/, examples/
 docker-bake.hcl        targets: agent-base, opencode, dsh (+ dev and test)
 scripts/               bake.sh (build + provenance), smoke.sh (runtime check)
@@ -54,14 +55,13 @@ docs/                  documentation for users
 ```
 
 A stack service carries only its own concerns — build, ports, credentials,
-state volumes — because it merges the shared anchors:
+state volumes — because it extends the common service:
 
 ```yaml
 opencode:
   profiles: ["opencode"]
-  <<: *sandbox
+  extends: {file: ./compose.common.yml, service: common}
   environment:
-    <<: *agent-env
     OPENCODE_SERVER_PASSWORD: "${OPENCODE_SERVER_PASSWORD:-changeme123}"
   build: { context: ./stacks/opencode/image, target: opencode }
   # No command: the image's s6 agent service defines the launch line
@@ -87,7 +87,7 @@ The base image is built first and the stacks build `FROM` it, so a single
 |---|---|
 | [docs/index.md](docs/index.md) | overview and reading order |
 | [docs/architecture.md](docs/architecture.md) | image contents, boot sequence, services, state |
-| [docs/compose.md](docs/compose.md) | anchors, profiles, stack services |
+| [docs/compose.md](docs/compose.md) | common service, profiles, stack services |
 | [docs/configuration.md](docs/configuration.md) | variables, volumes, hooks, healthcheck |
 | [docs/build.md](docs/build.md) | targets, pins, provenance, publishing, CI |
 | [docs/troubleshooting.md](docs/troubleshooting.md) | known failure modes |

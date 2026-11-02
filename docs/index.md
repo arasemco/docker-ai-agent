@@ -9,7 +9,7 @@ the toolchain agents expect. It ships no agent — child images add their own CL
 | Document | What it answers |
 |---|---|
 | [architecture.md](architecture.md) | What is inside the image? How does it boot? Who runs what? |
-| [compose.md](compose.md) | How do the anchors, profiles and stack services fit together? |
+| [compose.md](compose.md) | How do the common service, profiles and stack services fit together? |
 | [configuration.md](configuration.md) | Every environment variable, volume, path and hook. |
 | [build.md](build.md) | Building, tagging, publishing, and where the OCI metadata comes from. |
 | [troubleshooting.md](troubleshooting.md) | The failures worth knowing before they happen. |
@@ -32,9 +32,10 @@ Each stack has its own documentation next to its image:
 uid/gid 1000, docker-ce rootless, Python/uv/yq and a build toolchain. `s6-overlay`
 is PID 1 and runs two longruns: `dockerd` (announces readiness when the API
 answers) and `agent` (waits for that, then runs the launch line named by its
-run script). `docker-compose.yml` defines the shared sandbox as YAML anchors and
-one service per stack, behind a profile; `docker compose --profile <name> up`
-starts exactly one stack. A stack image needs `FROM`, its CLI, and its own
+run script). `docker-compose.yml` extends the shared `common` service from
+`compose.common.yml` and defines one service per stack, behind a profile;
+`docker compose --profile <name> up` starts exactly one stack. A stack image
+needs `FROM`, its CLI, and its own
 `services.d/agent/run` naming the executable — the idler when the CLI is
 interactive, as in `stacks/claude` — and the compose file carries no `command:`;
 s6 runs a container `CMD` as a separate foreground command, not as the CLI's
@@ -42,9 +43,8 @@ arguments.
 
 ## Conventions used throughout
 
-- **Anchor** — a YAML anchor in `docker-compose.yml` (`x-sandbox`,
-  `x-agent-env`, `x-docker`, `x-skills`) that owns one concern and is merged into
-  every service that needs it.
+- **Common service** — the `common` service in `compose.common.yml` owns the
+  sandbox, environment and daemon volume; each stack service extends it.
 - **Child image** — an image built `FROM agent-base`, adding one agent CLI.
 - **Agent user** — the unprivileged account (`agent`, uid/gid 1000) that both
   services run as; the container's PID 1 stays root.

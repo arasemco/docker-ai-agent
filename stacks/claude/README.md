@@ -42,7 +42,7 @@ usable credential is visible immediately.
 | Node 22 | copied from the official Node image, pinned by digest (base ships Node 18) |
 | Claude Code | `npm install -g @anthropic-ai/claude-code@${CLAUDE_VERSION}` in `image/Dockerfile` |
 | launch line (idler) | `image/services.d/agent/run` |
-| sandbox (devices, seccomp, proxy, limits, mounts, skills) | the shared compose anchors in `docker-compose.yml` |
+| sandbox (devices, seccomp, proxy, limits, mounts, skills) | the shared `common` service in `compose.common.yml` |
 | s6 services, hooks, healthcheck, restart policy | agent-base |
 
 State lives under `/home/agent/.claude` (`CLAUDE_CONFIG_DIR`), a named volume:

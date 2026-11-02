@@ -20,6 +20,6 @@ has the map, invariants and checks.
 
 `image/Dockerfile` installs `opencode-ai` from npm into the base image and
 ships `services.d/agent/run` with the stack's launch line (`opencode web ...`).
-The compose file carries the port, credentials and state volumes, and merges
-the shared sandbox anchors; it sets no `command:`. `make up` assembles and
+The compose file carries the port, credentials and state volumes, and extends
+the shared `common` service; it sets no `command:`. `make up` assembles and
 starts it, `make smoke` proves the UI answers and the services are up.

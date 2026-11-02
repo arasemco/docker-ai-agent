@@ -1,9 +1,10 @@
 # =============================================================================
 # ai/agent — one project, one base image, one stack per agent CLI
 # =============================================================================
-# Everything that is shared lives in the anchors below, grouped by concern.
-# Services merge the ones they need; nothing is repeated and nothing is copied
-# between files.
+# Shared sandbox, environment and daemon volume live in compose.common.yml as
+# the profile-less `common` service; every stack extends it through
+# `extends.file`. A same-file parent would also pass on its profile and build
+# target, which is why the common service is separate.
 #
 # Pick what to run with a profile:
 #
@@ -13,12 +14,6 @@
 #   docker compose --profile base up -d --build       # sandbox only (no CLI)
 #   make up PROFILE=opencode
 #
-# Anchors:
-#   x-sandbox     init/tty/restart, seccomp exceptions, devices, resource limits
-#   x-agent-env   AGENT_* toggles and proxy resolution shared by every service
-#   x-docker      the inner daemon's data volume
-#   x-skills      the shared Agent Skills root (read-only)
-#
 # Services carry build, environment, ports and volumes only. What each stack
 # runs — `opencode web ...`, `dsh web` — is the image's own concern, defined by
 # its s6 agent service (services.d/agent/run), so there are no `command:` keys
@@ -27,64 +22,6 @@
 
 name: agent
 
-# --- sandbox ---------------------------------------------------------------
-# What the rootless Docker daemon needs from the host: rootlesskit creates user
-# and mount namespaces (blocked by the default seccomp profile and masked /proc
-# paths), fuse-overlayfs needs /dev/fuse, slirp4netns needs /dev/net/tun.
-x-sandbox: &sandbox
-  init: false
-  stdin_open: true
-  tty: true
-  restart: "no"
-  hostname: ${AGENT_HOSTNAME:-agent}
-  security_opt:
-    - seccomp:unconfined
-    - systempaths=unconfined
-  devices:
-    - /dev/fuse
-    - /dev/net/tun
-  deploy:
-    resources:
-      limits:
-        cpus: "${AGENT_CPUS:-2}"
-        memory: "${AGENT_MEMORY:-4G}"
-
-# --- environment -----------------------------------------------------------
-# Merged into each service's environment mapping (`<<: *agent-env`), so a stack
-# adds its own variables without restating these.
-#
-# Proxy variables are resolved here, first match wins per variable:
-#
-#     HTTP_PROXY  -> http_proxy  -> PROXY  -> (empty)
-#     HTTPS_PROXY -> https_proxy -> PROXY  -> (empty)
-#     ALL_PROXY   -> all_proxy   -> PROXY  -> (empty)
-#     http_proxy  -> HTTP_PROXY  -> PROXY  -> (empty)   (and so on)
-#
-# Either case fills the other because tools disagree about which one they read,
-# and one PROXY value covers every scheme. NO_PROXY is not a proxy address: it
-# has no PROXY fallback, only the loopback default, so local endpoints never go
-# to the proxy.
-x-agent-env: &agent-env
-  AGENT_WORKSPACE: /home/agent/workspace
-  AGENT_DOCKERD: "${AGENT_DOCKERD:-1}"
-  AGENT_DOCKERD_TIMEOUT: "${AGENT_DOCKERD_TIMEOUT:-30}"
-  AGENT_DOCKERD_MAX_RESTARTS: "${AGENT_DOCKERD_MAX_RESTARTS:-3}"
-  AGENT_RESTART_MAX: "${AGENT_RESTART_MAX:-3}"
-  HTTP_PROXY: "${HTTP_PROXY:-${http_proxy:-${PROXY:-}}}"
-  HTTPS_PROXY: "${HTTPS_PROXY:-${https_proxy:-${PROXY:-}}}"
-  ALL_PROXY: "${ALL_PROXY:-${all_proxy:-${PROXY:-}}}"
-  NO_PROXY: "${NO_PROXY:-${no_proxy:-localhost,127.0.0.1,::1}}"
-  http_proxy: "${http_proxy:-${HTTP_PROXY:-${PROXY:-}}}"
-  https_proxy: "${https_proxy:-${HTTPS_PROXY:-${PROXY:-}}}"
-  all_proxy: "${all_proxy:-${ALL_PROXY:-${PROXY:-}}}"
-  no_proxy: "${no_proxy:-${NO_PROXY:-localhost,127.0.0.1,::1}}"
-
-# --- volumes ---------------------------------------------------------------
-# A named volume, not a bind mount: the daemon's data holds files owned by
-# subordinate uids, and losing it would throw away the image cache on every
-# recreate.
-x-docker: &docker-volume "${AGENT_DOCKER_VOLUME:-agent-docker}:/home/agent/.local/share/docker"
-
 services:
   # -------------------------------------------------------------------------
   # Sandbox only: the base image ships no agent CLI, so its agent service
@@ -92,35 +29,21 @@ services:
   # -------------------------------------------------------------------------
   agent-base:
     profiles: ["base"]
-    <<: *sandbox
+    extends: {file: ./compose.common.yml, service: common}
     image: ${AGENT_IMAGE:-agent-base:local}
-    pull_policy: build
     build:
       context: ./image
-      dockerfile: Dockerfile
       target: agent-base
-      args:
-        AGENT_USER: ${AGENT_USER:-agent}
-        AGENT_UID: ${AGENT_UID:-1000}
-        AGENT_GID: ${AGENT_GID:-1000}
-        DOCKER_VERSION: ${DOCKER_VERSION:-29.8.1}
-        UV_VERSION: ${UV_VERSION:-0.13.6}
-    environment:
-      <<: *agent-env
-    volumes:
-      - *docker-volume
 
   # -------------------------------------------------------------------------
   # OpenCode — Web UI on a published loopback port.
   # -------------------------------------------------------------------------
   opencode:
     profiles: ["opencode"]
-    <<: *sandbox
+    extends: {file: ./compose.common.yml, service: common}
     image: ${OPENCODE_IMAGE:-opencode:local}
-    pull_policy: build
     build:
       context: ./stacks/opencode/image
-      dockerfile: Dockerfile
       target: opencode
       args:
         AGENT_BASE: ${AGENT_BASE:-agent-base:1.5.0}
@@ -131,7 +54,6 @@ services:
       # OPENCODE_BIND_IP=0.0.0.0 to publish on the LAN.
       - "${OPENCODE_BIND_IP:-127.0.0.1}:${OPENCODE_PORT:-4096}:${OPENCODE_PORT:-4096}"
     environment:
-      <<: *agent-env
       OPENCODE_PORT: "${OPENCODE_PORT:-4096}"
       OPENCODE_SERVER_PASSWORD: "${OPENCODE_SERVER_PASSWORD:-changeme123}"
       ANTHROPIC_API_KEY: "${ANTHROPIC_API_KEY:-}"
@@ -140,7 +62,6 @@ services:
       OLLAMA_BASE_URL: "${OLLAMA_BASE_URL:-}"
       OLLAMA_API_KEY: "${OLLAMA_API_KEY:-}"
     volumes:
-      - *docker-volume
       # Named volumes inherit the agent user's ownership from the image; point a
       # *_HOST variable at a host path (uid 1000) to bind instead.
       - ${OPENCODE_CONFIG_HOST:-opencode-config}:/home/agent/.config/opencode
@@ -158,9 +79,8 @@ services:
   # Linux-only; on Docker Desktop run dsh on the host instead.
   dsh:
     profiles: ["dsh"]
-    <<: *sandbox
+    extends: {file: ./compose.common.yml, service: common}
     image: ${DSH_IMAGE:-dsh:local}
-    pull_policy: build
     build:
       context: ./stacks/deepseek-harness/image
       dockerfile: Dockerfile
@@ -172,13 +92,11 @@ services:
         NODE_REF: ${NODE_REF:-docker.io/library/node:22-bookworm-slim@sha256:4b150b48b4116e2a22f2c39cc27025fbf4f153e2078fd3b14d159fdb5c7279da}
     network_mode: host
     environment:
-      <<: *agent-env
       DSH_PORT: "${DSH_PORT:-3080}"
       DSH_WORKSPACE: /home/agent/workspace
       DSH_TRUSTED_HOSTS: "${DSH_TRUSTED_HOSTS:-}"
       DSH_DOCKERD: "${DSH_DOCKERD:-1}"
     volumes:
-      - *docker-volume
       # Profiles, credentials (the API key written by Settings -> Models) and
       # session history.
       - ${DSH_HOME_HOST:-dsh-home}:/home/agent/.dsh
@@ -193,9 +111,8 @@ services:
   # -------------------------------------------------------------------------
   claude:
     profiles: ["claude"]
-    <<: *sandbox
+    extends: {file: ./compose.common.yml, service: common}
     image: ${CLAUDE_IMAGE:-claude:local}
-    pull_policy: build
     build:
       context: ./stacks/claude/image
       dockerfile: Dockerfile
@@ -206,11 +123,9 @@ services:
         NODE_REF: ${NODE_REF:-docker.io/library/node:22-bookworm-slim@sha256:4b150b48b4116e2a22f2c39cc27025fbf4f153e2078fd3b14d159fdb5c7279da}
     hostname: claude
     environment:
-      <<: *agent-env
       ANTHROPIC_API_KEY: "${ANTHROPIC_API_KEY:-}"
       CLAUDE_CODE_OAUTH_TOKEN: "${CLAUDE_CODE_OAUTH_TOKEN:-}"
     volumes:
-      - *docker-volume
       # Settings, credentials, transcripts and .claude.json, all under
       # CLAUDE_CONFIG_DIR.
       - ${CLAUDE_HOME_HOST:-claude-home}:/home/agent/.claude

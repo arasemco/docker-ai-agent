@@ -3,8 +3,8 @@
 # =============================================================================
 # This file carries ONLY what is specific to the example agent. The sandbox —
 # s6 services, rootless Docker devices/seccomp, proxy values and limits — is
-# inherited from the anchors in the repository's docker-compose.yml; copy the
-# `x-sandbox` / `x-agent-env` blocks into your own file to stand alone.
+# inherited from the common service in the repository's compose.common.yml;
+# copy that service into your own file to stand alone.
 #
 #   cp -r examples/child-image /tmp/my-agent && cd /tmp/my-agent
 #   docker compose -f container/docker-compose.yml up -d --build
@@ -33,6 +33,6 @@ services:
       - ${EXAMPLE_HOME_HOST:-example-cli-home}:/home/agent/.config/example-cli
 
 volumes:
-  # Required by the sandbox anchors.
+  # Required by the common service.
   agent-docker:
   example-cli-home:

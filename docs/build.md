@@ -6,7 +6,7 @@
 |---|---|
 | `make build` / `scripts/bake.sh` | `agent-base:latest` and `agent-base:<BASE_VERSION>` |
 | `make test` / `scripts/bake.sh test` | image + test stage (shellcheck, tool matrix); exports nothing |
-| `make smoke` | builds, starts with the anchor set, validates from inside |
+| `make smoke` | builds, starts with the common sandbox, validates from inside |
 | `scripts/bake.sh agent-base-dev` | mutable `:dev` tag |
 
 The image context is `image/` only (`docker-bake.hcl` sets `context = "image"`);

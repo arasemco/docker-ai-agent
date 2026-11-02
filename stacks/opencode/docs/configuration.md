@@ -19,7 +19,7 @@ Everything is optional; the defaults work with no configuration.
 | `OLLAMA_BASE_URL`, `OLLAMA_API_KEY` | – | local OpenAI-compatible endpoint |
 
 The sandbox has its own switches (`AGENT_DOCKERD`, `AGENT_HEALTHCHECK`,
-`AGENT_CPUS`, `AGENT_SKILLS_HOST`, proxy variables…), documented in
+`AGENT_CPUS`, proxy variables…), documented in
 [agent-base's configuration reference](../../../docs/configuration.md).
 
 ## State
@@ -57,11 +57,11 @@ fallback. Set a real `OPENCODE_SERVER_PASSWORD` before setting
 `OPENCODE_BIND_IP=0.0.0.0`. A password-protected UI answers `401` to a bare
 request, which is what `scripts/smoke.sh` expects.
 
-## Compose anchors
+## Compose
 
-Every service merges the shared anchors (`x-sandbox`, `x-agent-env`, `x-docker`,
-`x-skills`); this stack's service adds only its build, port, credentials and
-state volumes. Proxy values come from `.env` or the environment:
+Every service extends the shared `common` service (`compose.common.yml`); this
+stack's service adds only its build, port, credentials and state volumes. Proxy
+values come from `.env` or the environment:
 
 ```bash
 make up                          # build and start the stack
