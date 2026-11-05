@@ -12,6 +12,8 @@
 #     copied into the final image, so there is no second distribution and no
 #     third-party apt repository.
 #   * @deepseek-ai/dsh from npm, pinned to an exact version.
+#   * pnpm from npm, pinned to an exact version — the package manager behind
+#     `dsh plugin`, which forwards its arguments to the `pnpm` on PATH.
 #   * The hook that turns DSH_* variables into `dsh web` options.
 #   * services.d/agent/run, the s6 service's launch line (`dsh web`).
 #   * A healthcheck that proves the UI answers an authenticated request.
@@ -30,6 +32,10 @@ ARG NODE_REF=docker.io/library/node:22-bookworm-slim@sha256:4b150b48b4116e2a22f2
 
 ARG DSH_VERSION=0.2.1-rc.5
 
+# `dsh plugin` runs pnpm from PATH; its plugin manager writes
+# pnpm-workspace.yaml's allowBuilds, which pnpm 11 and newer provide.
+ARG PNPM_VERSION=12.16.1
+
 # -----------------------------------------------------------------------------
 # node — the runtime pieces only: the node binary and npm. corepack, yarn and the
 # development headers are not copied, because nothing here uses them.
@@ -42,6 +48,7 @@ FROM ${NODE_REF} AS node
 FROM ${AGENT_BASE} AS runtime
 
 ARG DSH_VERSION
+ARG PNPM_VERSION
 
 # /usr/local/bin comes first on PATH, so this Node 22 wins over Debian's
 # /usr/bin/node 18 for the shell and for everything dsh starts.
@@ -52,6 +59,12 @@ RUN ln -sf ../lib/node_modules/npm/bin/npm-cli.js /usr/local/bin/npm \
     && ln -sf /usr/local/bin/node /usr/local/bin/nodejs \
     && node --version \
     && npm --version
+
+# Global install as root: pnpm and its /usr/local/bin/pnpm link, so the shell
+# and every process dsh starts find the package manager `dsh plugin` runs.
+RUN --mount=type=cache,target=/root/.npm \
+    npm install --global --no-fund --no-audit --no-update-notifier "pnpm@${PNPM_VERSION}" \
+    && pnpm --version
 
 # Global install as root: /usr/local/lib/node_modules/@deepseek-ai/dsh with
 # /usr/local/bin/dsh linked to its lib/bin.js. dsh's native dependencies ship
