@@ -10,9 +10,9 @@
 #
 # The host overlay is optional:
 #   make up PROFILE=dsh LOCAL_COMPOSE=docker-compose.local.yml
-PROFILE       ?= opencode
+PROFILE       ?= dsh
 SHELL_BIN     ?= bash
-LOCAL_COMPOSE ?=
+LOCAL_COMPOSE ?= docker-compose.local.yml
 SERVICE       := $(if $(filter base,$(PROFILE)),agent-base,$(PROFILE))
 COMPOSE       := docker compose --profile $(PROFILE) $(if $(LOCAL_COMPOSE),-f docker-compose.yml -f $(LOCAL_COMPOSE),)
 EXPORT        := eval "$$(tooling/versions.sh --export)"
