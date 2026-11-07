@@ -11,7 +11,8 @@ Versions and image references are **not** deployment variables: they live in
 ## Sandbox knobs
 
 `AGENT_DOCKERD`, `AGENT_DOCKERD_TIMEOUT`, `AGENT_DOCKERD_MAX_RESTARTS`,
-`AGENT_RESTART_MAX`, `AGENT_DOCKER_VOLUME`, `AGENT_CPUS`, `AGENT_MEMORY`,
+`AGENT_RESTART_MAX`, `AGENT_DOCKER_VOLUME`, `AGENT_UV_CACHE_VOLUME`,
+`AGENT_UV_DATA_VOLUME`, `AGENT_WORKSPACE_HOST`, `AGENT_CPUS`, `AGENT_MEMORY`,
 `AGENT_HEALTHCHECK`, `AGENT_HEALTH_URL`, `AGENT_SUBID_REMAP`, proxy variables.
 
 ## Identity
@@ -44,6 +45,7 @@ after the launch file. They may rewrite `$@` and may abort startup by design.
 
 ## Volumes
 
-The inner daemon uses the shared `agent-docker` volume (declared in
-`base/compose.yml`). Each stack declares its own state volumes in its
-`compose.yml`; the `*_HOST` variable points at a host path to bind instead.
+The inner daemon uses the shared `agent-docker` volume, and the uv cache/data use
+`uv-cache`/`uv-data` (all declared in `base/compose.yml`). Each stack declares its
+own home and workspace volumes in its `compose.yml`; the `*_HOST` variable points
+at a host path to bind instead.

@@ -27,7 +27,6 @@ COPY --chmod=755 health.d/ /etc/agent-healthcheck.d/
 COPY --chmod=755 hooks/20-dsh-flags.sh /etc/agent-entrypoint.d/20-dsh-flags.sh
 
 ENV DSH_HOME=/home/agent/.dsh \
-    DSH_WORKSPACE=/home/agent/workspace \
     DSH_PORT=3080 \
     DSH_PACKAGE=/usr/local/lib/node_modules/@deepseek-ai/dsh/package.json \
     AGENT_WORKSPACE=/home/agent/workspace

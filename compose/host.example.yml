@@ -8,7 +8,9 @@
 # It is the only place for host binds, the agent tree, GPU devices and
 # host-specific limits. Never commit the filled-in file.
 x-host-volumes: &host-volumes
-  - ${HOME}/.agents:/home/agent/.agents:ro
+  - ${HOME}/.agents:/mnt/share/agents:ro
+  # Per-stack workspace, e.g.:
+  # - ${HOME}/.agents/workspace/dsh:/home/agent/workspace:rw
   - ${HOME}/Projects:/home/agent/Projects:rw
   - ${HOME}/stacks:/home/agent/stacks:ro
 

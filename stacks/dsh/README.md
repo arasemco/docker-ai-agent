@@ -1,4 +1,4 @@
-# deepseek-harness
+# dsh
 
 The [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) (`dsh`)
 Web UI in a container, built on [agent-base](../../README.md): an
@@ -47,7 +47,7 @@ intends. This is Linux-only; on Docker Desktop run dsh on the host instead. See
 
 | Piece | Comes from |
 |---|---|
-| base image (Debian, agent user, s6 services, dockerd, toolchain) | `AGENT_BASE`, default `agent-base:2.0.0` |
+| base image (Debian, agent user, s6 services, dockerd, toolchain) | `AGENT_BASE` build arg, pinned in `versions.env` |
 | Node 22 | `agent-base-node22` variant, pinned by `NODE_REF` |
 | dsh | `npm install -g @deepseek-ai/dsh@${DSH_VERSION}` |
 | launch line (`dsh web`) | `image/agent-launch.d/agent.sh` |
@@ -71,16 +71,15 @@ written by the UI, and session history.
 
 | Path | Purpose |
 |---|---|
-| `base/Dockerfile` | dsh on agent-base: Node build stage, runtime, test stage |
-| `image/healthcheck.mjs` | authenticated healthcheck |
+| `image/Dockerfile` | dsh on the Node 22 base variant: runtime and test stages |
+| `image/healthcheck.mjs` | authenticated healthcheck fragment |
 | `image/hooks/20-dsh-flags.sh` | `DSH_*` → CLI flag translation |
-| `docker-compose.yml` | host networking, credentials, `DSH_*` |
 | `image/agent-launch.d/agent.sh` | the launch line the s6 agent service uses |
-| `tooling/bake.sh` | builds and tags the image, deriving provenance from git |
-| `tooling/smoke.sh` | runtime check of a running stack |
-| `docker-bake.hcl` | bake targets, pins, OCI labels |
-| `examples/` | env, compose and credentials starting points (not used by the build) |
-| `docs/`, `.agents/` | documentation for users and for agents |
+| `image/state.d/dsh.paths` | state directories created at boot |
+| `compose.yml` | host networking, credentials, home and workspace volumes |
+| `bake.hcl` | the module build and test targets |
+| `test/probe.sh` | runtime probe used by `tooling/smoke.sh` |
+| `docs/` | module documentation |
 
 ## License
 

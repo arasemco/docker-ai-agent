@@ -1,5 +1,6 @@
-# The base module: sandbox-only profile, no agent CLI. The shared daemon volume
-# is declared here because `extends` does not import top-level resources.
+# The base module: sandbox-only profile, no agent CLI. The shared sandbox
+# volumes (daemon data, workspace, uv cache/data) are declared here because
+# `extends` does not import top-level resources.
 services:
   agent-base:
     profiles: ["base"]

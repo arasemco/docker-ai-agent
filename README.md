@@ -21,8 +21,8 @@ make up PROFILE=claude      # then: make exec PROFILE=claude
 ```
 
 `make up` builds through `tooling/bake.sh` and runs compose with the exported
-image references. Compose itself carries no `build:` keys. A host overlay is
-optional:
+image references. Compose itself carries no `build:` keys. The host overlay is
+applied by default (`LOCAL_COMPOSE`); set `LOCAL_COMPOSE=` to disable it:
 
 ```bash
 make up PROFILE=dsh LOCAL_COMPOSE=docker-compose.local.yml

@@ -8,8 +8,10 @@
 #   make generate                  regenerate reference pages
 #   make release                   assert the tag and build/push every image
 #
-# The host overlay is optional:
-#   make up PROFILE=dsh LOCAL_COMPOSE=docker-compose.local.yml
+# The host overlay is applied by default (LOCAL_COMPOSE); set LOCAL_COMPOSE= to
+# disable it:
+#   make up PROFILE=dsh
+#   make up PROFILE=dsh LOCAL_COMPOSE=
 PROFILE       ?= dsh
 SHELL_BIN     ?= bash
 LOCAL_COMPOSE ?= docker-compose.local.yml

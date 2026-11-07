@@ -12,7 +12,7 @@ metadata:
 
 ```bash
 make up PROFILE=opencode                          # or PROFILE=dsh
-docker compose --profile opencode up -d --build   # same, without make
+tooling/bake.sh opencode && docker compose --profile opencode up -d --no-build
 docker compose --profile base up -d               # sandbox only
 docker compose --profile opencode exec --user 1000 opencode bash   # agent's shell
 ```

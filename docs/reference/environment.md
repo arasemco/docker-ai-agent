@@ -9,6 +9,9 @@ Generated from `config/knobs.env`; do not edit.
 | `AGENT_DOCKERD_MAX_RESTARTS` | `3` | failed dockerd starts before idling |
 | `AGENT_RESTART_MAX` | `3` | failed agent starts before stopping the container |
 | `AGENT_DOCKER_VOLUME` | `agent-docker` | volume or host path for daemon data |
+| `AGENT_UV_CACHE_VOLUME` | `uv-cache` | named volume for the uv cache |
+| `AGENT_UV_DATA_VOLUME` | `uv-data` | named volume for uv data |
+| `AGENT_WORKSPACE_HOST` | `agent-workspace` | volume or host path for the sandbox workspace |
 | `AGENT_HOSTNAME` | `agent` | container hostname where compose allows it |
 | `AGENT_CPUS` | `2` | CPU limit for the common service |
 | `AGENT_MEMORY` | `4G` | memory limit for the common service |
@@ -30,6 +33,7 @@ Generated from `config/knobs.env`; do not edit.
 | `OPENCODE_CONFIG_HOST` | `opencode-config` | volume or host path for config |
 | `OPENCODE_DATA_HOST` | `opencode-data` | volume or host path for data |
 | `OPENCODE_STATE_HOST` | `opencode-state` | volume or host path for state |
+| `OPENCODE_WORKSPACE_HOST` | `opencode-workspace` | volume or host path for the workspace |
 | `ANTHROPIC_API_KEY` | `-` | provider credential |
 | `OPENAI_API_KEY` | `-` | provider credential |
 | `GEMINI_API_KEY` | `-` | provider credential |
@@ -38,5 +42,7 @@ Generated from `config/knobs.env`; do not edit.
 | `DSH_PORT` | `3080` | Web UI port |
 | `DSH_TRUSTED_HOSTS` | `-` | space-separated trusted hosts for /api |
 | `DSH_HOME_HOST` | `dsh-home` | volume or host path for profiles/credentials |
+| `DSH_WORKSPACE_HOST` | `dsh-workspace` | volume or host path for the workspace |
 | `CLAUDE_HOME_HOST` | `claude-home` | volume or host path for Claude state |
+| `CLAUDE_WORKSPACE_HOST` | `claude-workspace` | volume or host path for the workspace |
 | `CLAUDE_CODE_OAUTH_TOKEN` | `-` | long-lived subscription token |

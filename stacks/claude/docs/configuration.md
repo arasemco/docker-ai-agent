@@ -5,12 +5,10 @@ runs without one, but `claude` will ask you to sign in.
 
 | Variable | Default | Meaning |
 |---|---|---|
-| `CLAUDE_IMAGE` | `claude:local` | tag for the built image |
-| `CLAUDE_VERSION` | `2.1.316` | exact `@anthropic-ai/claude-code` version |
 | `CLAUDE_HOME_HOST` | `claude-home` | volume or host path mounted at `CLAUDE_CONFIG_DIR` |
+| `CLAUDE_WORKSPACE_HOST` | `claude-workspace` | volume or host path for the workspace |
 | `CLAUDE_CODE_OAUTH_TOKEN` | – | long-lived subscription token from `claude setup-token` |
 | `ANTHROPIC_API_KEY` | – | API key for direct Anthropic API billing |
-| `AGENT_BASE` | `agent-base:2.0.0` | base image the Dockerfile builds from |
 | `CLAUDE_CONFIG_DIR` | `/home/agent/.claude` | set by the image; every path Claude Code writes lives here |
 
 The sandbox variables (`AGENT_DOCKERD`, `AGENT_CPUS`, `PROXY`, …) are shared with

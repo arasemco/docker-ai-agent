@@ -24,11 +24,11 @@ services:
 
 `compose/common.yml` is profile-less, image-less and build-less. It owns the
 sandbox devices, seccomp exceptions, default limits, proxy resolution and the
-daemon volume reference. It contains no host values.
+daemon/uv volume references. It contains no host values.
 
-The daemon volume `agent-docker` is declared in `base/compose.yml`; `extends`
-does not import top-level resources. A stack declares its own top-level
-`volumes:` in its fragment.
+The shared `agent-docker`, `agent-workspace`, `uv-cache` and `uv-data` volumes are
+declared in `base/compose.yml`; `extends` does not import top-level resources. A
+stack declares its own top-level `volumes:` in its fragment.
 
 ## Images
 

@@ -11,7 +11,6 @@ services:
     network_mode: host
     environment:
       DSH_PORT: "${DSH_PORT:-3080}"
-      DSH_WORKSPACE: /home/agent/workspace
       DSH_TRUSTED_HOSTS: "${DSH_TRUSTED_HOSTS:-}"
     volumes:
       # Profiles, credentials (the API key written by Settings -> Models) and

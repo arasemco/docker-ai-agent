@@ -38,7 +38,7 @@ usable credential is visible immediately.
 
 | Piece | Comes from |
 |---|---|
-| base image (Debian, agent user, s6 services, dockerd, toolchain) | `AGENT_BASE` build arg, default `agent-base:2.0.0` |
+| base image (Debian, agent user, s6 services, dockerd, toolchain) | `AGENT_BASE` build arg, pinned in `versions.env` |
 | Node 22 | copied from the official Node image, pinned by digest (base ships Node 18) |
 | Claude Code | `npm install -g @anthropic-ai/claude-code@${CLAUDE_VERSION}` in `base/Dockerfile` |
 | launch line (idler) | `image/agent-launch.d/agent.sh` |
@@ -67,13 +67,13 @@ State lives under `/home/agent/.claude` (`CLAUDE_CONFIG_DIR`), a named volume:
 
 | Path | Purpose |
 |---|---|
-| `base/Dockerfile` | the Claude Code layer on top of agent-base |
+| `image/Dockerfile` | the Claude Code layer on top of the Node 22 base variant |
 | `image/agent-launch.d/agent.sh` | the s6 agent service's launch line (the idler) |
-| `docker-compose.yml` | the stack: credentials and state volume |
-| `tooling/bake.sh` | builds and tags the image, deriving provenance from git |
-| `tooling/smoke.sh` | runtime check of a running stack |
-| `docker-bake.hcl` | bake targets, pins, OCI labels |
-| `docs/`, `.agents/` | documentation for users and for agents |
+| `image/state.d/claude.paths` | state directories created at boot |
+| `compose.yml` | credentials, home and workspace volumes |
+| `bake.hcl` | the module build and test targets |
+| `test/probe.sh` | runtime probe used by `tooling/smoke.sh` |
+| `docs/` | module documentation |
 
 ## License
 

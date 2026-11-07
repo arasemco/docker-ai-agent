@@ -34,8 +34,8 @@ causes:
 
 - the container was started without the sandbox settings (no `/dev/fuse`, no
   seccomp exceptions) — use `make up`;
-- the base image predates agent-base 1.4.0, which adapts `/etc/subuid` when the
-  container itself runs under a rootless daemon. Bump `AGENT_BASE`.
+- the base image predates the current sub-id remap; rebuild the stack with the
+  base version pinned in `versions.env`.
 
 ## My configuration changes have no effect
 

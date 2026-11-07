@@ -34,7 +34,7 @@ limits and mounts come from the shared `common` service the stack extends.
 
 | Piece | Comes from |
 |---|---|
-| base image (Debian, agent user, s6 services, dockerd, toolchain) | `AGENT_BASE` build arg, default `agent-base:2.0.0` |
+| base image (Debian, agent user, s6 services, dockerd, toolchain) | `AGENT_BASE` build arg, pinned in `versions.env` |
 | OpenCode | `npm install -g opencode-ai@${OPENCODE_VERSION}` in `base/Dockerfile` |
 | launch line (`opencode web ...`) | `image/agent-launch.d/agent.sh` |
 | sandbox (devices, seccomp, proxy, limits, mounts, skills) | the shared `common` service in `compose/common.yml` |
@@ -66,14 +66,14 @@ file you keep yourself can also be placed at
 
 | Path | Purpose |
 |---|---|
-| `base/Dockerfile` | the OpenCode layer on top of agent-base |
-| `docker-compose.yml` | the stack: port, credentials, state volumes |
+| `image/Dockerfile` | the OpenCode layer on top of agent-base |
 | `image/agent-launch.d/agent.sh` | the launch line the s6 agent service uses |
-| `tooling/bake.sh` | builds and tags the image, deriving provenance from git |
-| `tooling/smoke.sh` | runtime check of a running stack |
-| `docker-bake.hcl` | bake targets, pins, OCI labels |
-| `examples/` | config, env and compose starting points (not used by the build) |
-| `docs/`, `.agents/` | documentation for users and for agents |
+| `image/state.d/opencode.paths` | state directories created at boot |
+| `image/health.d/50-opencode.sh` | per-stack healthcheck fragment |
+| `compose.yml` | the module service: port, credentials, state and workspace volumes |
+| `bake.hcl` | the module build and test targets |
+| `test/probe.sh` | runtime probe used by `tooling/smoke.sh` |
+| `docs/` | module documentation |
 
 ## License
 

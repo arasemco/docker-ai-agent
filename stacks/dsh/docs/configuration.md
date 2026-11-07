@@ -9,13 +9,13 @@ Everything is optional; the defaults work with no configuration.
 | `DSH_PORT` | `3080` | port dsh listens on (passed as `--port`) |
 | `DSH_HOST` | – | `--host`; wildcard addresses are refused, see below |
 | `DSH_TRUSTED_HOSTS` | – | space-separated `--trusted-host` values for `/api` |
-| `DSH_DOCKERD` | `1` | `0` skips the inner Docker daemon |
 | `DSH_HOME` | `/home/agent/.dsh` | profiles, credentials, sessions |
-| `DSH_WORKSPACE` | `/home/agent/workspace` | working directory dsh starts in |
-| `AGENT_BASE` | `agent-base:2.0.0` | base image the Dockerfile builds from |
-| `DSH_VERSION` | `0.2.2-rc.1` | exact `@deepseek-ai/dsh` version from npm |
-| `DSH_IMAGE` | `dsh:local` | tag for the built image |
 | `DSH_HOME_HOST` | `dsh-home` | volume or host path mounted at `DSH_HOME` |
+| `DSH_WORKSPACE_HOST` | `dsh-workspace` | volume or host path mounted at the workspace |
+| `AGENT_DOCKERD` | `1` | `0` skips the inner Docker daemon (base knob) |
+
+Build pins (`AGENT_BASE`, `DSH_VERSION`, image tag) live in `versions.env`; see
+[the generated version matrix](../../../docs/reference/versions.md).
 
 The sandbox has its own switches (`AGENT_DOCKERD`, `AGENT_HEALTHCHECK`,
 `AGENT_CPUS`, proxy variables…), documented in
@@ -58,7 +58,7 @@ whether the file path works.
 | Path | Volume | Holds |
 |---|---|---|
 | `/home/agent/.dsh` | `dsh-home` | profiles, credentials, sessions |
-| `/home/agent/workspace` | – | working directory (`DSH_WORKSPACE`); not persisted unless a local override binds it |
+| `/home/agent/workspace` | `dsh-workspace` | working directory; mounted rw |
 | `/home/agent/.local/share/docker` | `agent-docker` | inner daemon data |
 
 ## Healthcheck

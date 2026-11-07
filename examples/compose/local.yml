@@ -12,13 +12,15 @@
 # trees, read-only shares, the agent tree, a directory that replaces a shared
 # mount. The service keys match the stack services.
 #
-# The agent tree is read-only at the top; each stack's writable subpaths are
-# added separately in the real overlay (the dsh stack, for example, adds its
-# hooks, instructions, memory, plans, state and workspace).
+# The agent tree is read-only at the top (mounted at /mnt/share/agents); each
+# stack's writable home and workspace are added separately in the real overlay,
+# e.g. ${HOME}/.agents/workspace/dsh:/home/agent/workspace:rw.
 # =============================================================================
 
 x-local-volumes: &local-volumes
-  - ${HOME}/.agents:/home/agent/.agents:ro
+  - ${HOME}/.agents:/mnt/share/agents:ro
+  # Per-stack workspace, e.g.:
+  # - ${HOME}/.agents/workspace/dsh:/home/agent/workspace:rw
   - ${HOME}/Projects:/home/agent/Projects:rw
   - ${HOME}/stacks:/home/agent/stacks:ro
 

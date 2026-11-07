@@ -9,12 +9,10 @@ Everything is optional; the defaults work with no configuration.
 | `OPENCODE_PORT` | `4096` | port the UI listens on and is published on |
 | `OPENCODE_BIND_IP` | `127.0.0.1` | interface the port is published on |
 | `OPENCODE_SERVER_PASSWORD` | `changeme123` | HTTP basic auth password for the UI |
-| `AGENT_BASE` | `agent-base:2.0.0` | base image the Dockerfile builds from |
-| `OPENCODE_VERSION` | `1.19.5` | exact `opencode-ai` version from npm |
-| `OPENCODE_IMAGE` | `opencode:local` | tag for the built image |
 | `OPENCODE_CONFIG_HOST` | `opencode-config` | volume or host path for the config dir |
 | `OPENCODE_DATA_HOST` | `opencode-data` | volume or host path for the data dir |
 | `OPENCODE_STATE_HOST` | `opencode-state` | volume or host path for the state dir |
+| `OPENCODE_WORKSPACE_HOST` | `opencode-workspace` | volume or host path for the workspace |
 | `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `GEMINI_API_KEY` | – | provider credentials, passed through empty |
 | `OLLAMA_BASE_URL`, `OLLAMA_API_KEY` | – | local OpenAI-compatible endpoint |
 
