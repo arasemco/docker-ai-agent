@@ -20,8 +20,10 @@ services:
       - ${OPENCODE_CONFIG_HOST:-opencode-config}:/home/agent/.config/opencode
       - ${OPENCODE_DATA_HOST:-opencode-data}:/home/agent/.local/share/opencode
       - ${OPENCODE_STATE_HOST:-opencode-state}:/home/agent/.local/state/opencode
+      - ${OPENCODE_WORKSPACE_HOST:-opencode-workspace}:/home/agent/workspace
 
 volumes:
   opencode-config:
   opencode-data:
   opencode-state:
+  opencode-workspace:

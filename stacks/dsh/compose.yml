@@ -17,6 +17,8 @@ services:
       # Profiles, credentials (the API key written by Settings -> Models) and
       # session history.
       - ${DSH_HOME_HOST:-dsh-home}:/home/agent/.dsh
+      - ${DSH_WORKSPACE_HOST:-dsh-workspace}:/home/agent/workspace
 
 volumes:
   dsh-home:
+  dsh-workspace:

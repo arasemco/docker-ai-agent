@@ -13,6 +13,8 @@ services:
       CLAUDE_CODE_OAUTH_TOKEN: "${CLAUDE_CODE_OAUTH_TOKEN:-}"
     volumes:
       - ${CLAUDE_HOME_HOST:-claude-home}:/home/agent/.claude
+      - ${CLAUDE_WORKSPACE_HOST:-claude-workspace}:/home/agent/workspace
 
 volumes:
   claude-home:
+  claude-workspace:

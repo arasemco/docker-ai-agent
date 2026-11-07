@@ -5,6 +5,11 @@ services:
     profiles: ["base"]
     extends: {file: ../compose/common.yml, service: common}
     image: ${AGENT_IMAGE:?run through make or tooling/versions.sh --export}
+    volumes:
+      - ${AGENT_WORKSPACE_HOST:-agent-workspace}:/home/agent/workspace
 
 volumes:
   agent-docker:
+  agent-workspace:
+  uv-cache:
+  uv-data:

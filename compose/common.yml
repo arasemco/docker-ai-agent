@@ -60,3 +60,5 @@ services:
     # declared by base/compose.yml, which is always included.
     volumes:
       - ${AGENT_DOCKER_VOLUME:-agent-docker}:/home/agent/.local/share/docker
+      - ${AGENT_UV_CACHE_VOLUME:-uv-cache}:/home/${AGENT_USER:-agent}/.cache/uv
+      - ${AGENT_UV_DATA_VOLUME:-uv-data}:/home/${AGENT_USER:-agent}/.local/share/uv
