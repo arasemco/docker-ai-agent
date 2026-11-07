@@ -13,7 +13,7 @@ Everything is optional; the defaults work with no configuration.
 | `DSH_HOME` | `/home/agent/.dsh` | profiles, credentials, sessions |
 | `DSH_WORKSPACE` | `/home/agent/workspace` | working directory dsh starts in |
 | `AGENT_BASE` | `agent-base:1.5.0` | base image the Dockerfile builds from |
-| `DSH_VERSION` | `0.2.1-rc.5` | exact `@deepseek-ai/dsh` version from npm |
+| `DSH_VERSION` | `0.2.2-rc.1` | exact `@deepseek-ai/dsh` version from npm |
 | `NODE_VERSION` | `22.23.4` | Node release compiled from source |
 | `DSH_IMAGE` | `dsh:local` | tag for the built image |
 | `DSH_HOME_HOST` | `dsh-home` | volume or host path mounted at `DSH_HOME` |

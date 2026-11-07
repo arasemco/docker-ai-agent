@@ -30,7 +30,7 @@ ARG AGENT_BASE=agent-base:1.5.0
 # compatibility layer.
 ARG NODE_REF=docker.io/library/node:22-bookworm-slim@sha256:4b150b48b4116e2a22f2c39cc27025fbf4f153e2078fd3b14d159fdb5c7279da
 
-ARG DSH_VERSION=0.2.1-rc.5
+ARG DSH_VERSION=0.2.2-rc.1
 
 # `dsh plugin` runs pnpm from PATH; its plugin manager writes
 # pnpm-workspace.yaml's allowBuilds, which pnpm 11 and newer provide.

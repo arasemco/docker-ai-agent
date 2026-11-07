@@ -95,7 +95,7 @@ variable "CACHE_READ" {
 
 variable "OPENCODE_VERSION" { default = "1.19.5" }
 
-variable "DSH_VERSION" { default = "0.2.1-rc.5" }
+variable "DSH_VERSION" { default = "0.2.2-rc.1" }
 
 variable "CLAUDE_VERSION" { default = "2.1.316" }
 
