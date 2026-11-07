@@ -75,4 +75,15 @@ services:
     # recreate. The extending project declares the volume; extends copies
     # service config only.
     volumes:
+      - ${HOME}/.agents:/home/${AGENT_USER:-agent}/.agents:ro
+
+      # TODO: Replace AGENT_USER by something more appropriate like AGENT_NAME or AGENT_TYPE or whatever is better name
+      #- ${HOME}/.agents/hooks/${AGENT_USER:-agent}:/home/${AGENT_USER:-agent}/.agents/hooks/${AGENT_USER:-agent}:rw
+      #- ${HOME}/.agents/instructions/${AGENT_USER:-agent}:/home/${AGENT_USER:-agent}/.agents/instructions/${AGENT_USER:-agent}:rw
+      #- ${HOME}/.agents/memory/${AGENT_USER:-agent}:/home/${AGENT_USER:-agent}/.agents/memory/${AGENT_USER:-agent}:rw
+      #- ${HOME}/.agents/plans/${AGENT_USER:-agent}:/home/${AGENT_USER:-agent}/.agents/plans/${AGENT_USER:-agent}:rw
+      #- ${HOME}/.agents/skills/${AGENT_USER:-agent}:/home/${AGENT_USER:-agent}/.agents/skills/${AGENT_USER:-agent}:rw
+      #- ${HOME}/.agents/state/${AGENT_USER:-agent}:/home/${AGENT_USER:-agent}/.agents/state/${AGENT_USER:-agent}:rw
+      #- ${HOME}/.agents/workspace/${AGENT_USER:-agent}:/home/${AGENT_USER:-agent}/.agents/workspace/${AGENT_USER:-agent}:rw
+
       - ${AGENT_DOCKER_VOLUME:-agent-docker}:/home/agent/.local/share/docker
