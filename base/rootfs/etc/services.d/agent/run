@@ -1,0 +1,12 @@
+#!/command/with-contenv bash
+# =============================================================================
+# services.d/agent/run — fixed launcher, identical in the base and every stack.
+#
+# The launch line lives in /etc/agent-launch.d/agent.sh, shipped by the module
+# that owns the CLI. Replacing this run script is no longer part of the
+# contract; that is what prevents a stack from bypassing the dockerd wait,
+# privilege drop, hooks and restart bookkeeping.
+# =============================================================================
+set -euo pipefail
+
+exec /usr/local/bin/agent-service-start

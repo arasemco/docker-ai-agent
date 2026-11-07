@@ -3,11 +3,11 @@
 # =============================================================================
 # This file carries ONLY what is specific to the example agent. The sandbox —
 # s6 services, rootless Docker devices/seccomp, proxy values and limits — is
-# inherited from the common service in the repository's compose.common.yml;
+# inherited from the common service in the repository's compose/common.yml;
 # copy that service into your own file to stand alone.
 #
 #   cp -r examples/child-image /tmp/my-agent && cd /tmp/my-agent
-#   docker compose -f container/docker-compose.yml up -d --build
+#   docker compose -f docker-compose.yml up -d --build
 #
 # Inside this repository the stacks under stacks/ work the same way.
 # =============================================================================
@@ -21,7 +21,7 @@ services:
       context: .
       dockerfile: Dockerfile
       args:
-        AGENT_BASE: ${AGENT_BASE:-agent-base:1.5.0}
+        AGENT_BASE: ${AGENT_BASE:-agent-base:2.0.0}
         CLI_VERSION: ${CLI_VERSION:-1.0.0}
     hostname: example-cli
     # No command: the image's s6 agent service defines what the CLI runs (see
@@ -33,6 +33,4 @@ services:
       - ${EXAMPLE_HOME_HOST:-example-cli-home}:/home/agent/.config/example-cli
 
 volumes:
-  # Required by the common service.
-  agent-docker:
   example-cli-home:

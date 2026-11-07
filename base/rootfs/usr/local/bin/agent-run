@@ -1,0 +1,39 @@
+#!/bin/bash
+# =============================================================================
+# agent-run — reads the module's launch line, sources hooks and execs it as the
+# agent user. Executed by agent-service-start after the dockerd wait.
+# =============================================================================
+set -euo pipefail
+
+# shellcheck source=/dev/null
+. /usr/local/lib/agent-base/lib.sh
+
+: "${AGENT_WORKSPACE:=$(agent_home)/workspace}"
+
+cd "${AGENT_WORKSPACE}"
+
+launch_file=/etc/agent-launch.d/agent.sh
+if [ ! -r "${launch_file}" ]; then
+    log "ERROR: missing ${launch_file}; the stack image must ship its launch line"
+    exit 2
+fi
+
+# shellcheck disable=SC1090
+. "${launch_file}"
+if [ "${#AGENT_LAUNCH[@]}" -eq 0 ]; then
+    log "ERROR: ${launch_file} sets an empty AGENT_LAUNCH"
+    exit 2
+fi
+executable="${AGENT_LAUNCH[0]}"
+set -- "${AGENT_LAUNCH[@]:1}"
+
+shopt -s nullglob
+for hook in /etc/agent-entrypoint.d/*.sh; do
+    log "sourcing hook ${hook}"
+    # shellcheck disable=SC1090
+    . "${hook}"
+done
+shopt -u nullglob
+
+log "handing off to: ${executable} $*"
+exec "${executable}" "$@"

@@ -1,0 +1,18 @@
+# Claude Code is an interactive TUI with no local server mode. The service
+# supervises the idler, so the sandbox stays up; the CLI runs on demand:
+#
+#   make exec PROFILE=claude    # then: claude
+services:
+  claude:
+    profiles: ["claude"]
+    extends: {file: ../../compose/common.yml, service: common}
+    image: ${CLAUDE_IMAGE:?run through make or tooling/versions.sh --export}
+    hostname: claude
+    environment:
+      ANTHROPIC_API_KEY: "${ANTHROPIC_API_KEY:-}"
+      CLAUDE_CODE_OAUTH_TOKEN: "${CLAUDE_CODE_OAUTH_TOKEN:-}"
+    volumes:
+      - ${CLAUDE_HOME_HOST:-claude-home}:/home/agent/.claude
+
+volumes:
+  claude-home:

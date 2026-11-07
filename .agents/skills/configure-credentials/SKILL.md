@@ -1,9 +1,9 @@
 ---
 name: configure-credentials
-description: Get a DeepSeek API key into dsh the way the image expects — through the UI into $DSH_HOME/.credentials.yaml — and verify it without putting the key in the environment. Use when dsh has no usable model, reports an invalid key, or `make test` cannot find credentials.
+description: Get a DeepSeek API key into dsh the way the image expects — through the UI into $DSH_HOME/.credentials.yaml — and verify it without putting the key in the environment. Use when dsh has no usable model, reports an invalid key, or `make test-dsh` cannot find credentials.
 metadata:
   area: config
-  files: docker-compose.yml, stacks/deepseek-harness/image/Dockerfile, makefile
+  files: docker-compose.yml, stacks/dsh/image/Dockerfile, makefile
 ---
 
 # Configure credentials
@@ -27,13 +27,13 @@ works — which is exactly what the image's `test` stage checks.
 3. Confirm the file exists and has the expected shape:
 
    ```bash
-   docker compose --profile opencode exec --no-TTY dsh sh -c 'ls -l ~/.dsh/.credentials.yaml; grep -c DEEPSEEK_API_KEY ~/.dsh/.credentials.yaml'
+   docker compose --profile dsh exec --no-TTY dsh sh -c 'ls -l ~/.dsh/.credentials.yaml; grep -c DEEPSEEK_API_KEY ~/.dsh/.credentials.yaml'
    ```
 
 4. Verify against the real API and a headless run:
 
    ```bash
-   make test          # reads the volume if no local copy exists
+   make test-dsh      # reads the volume if no local copy exists
    ```
 
    Expect `test: API key valid (GET /models -> 200)` and
@@ -41,7 +41,7 @@ works — which is exactly what the image's `test` stage checks.
 
 ## When the key comes from elsewhere
 
-- **An existing credentials file:** `DSH_CREDENTIALS=/path/to/.credentials.yaml make test`.
+- **An existing credentials file:** `DSH_CREDENTIALS=/path/to/.credentials.yaml make test-dsh`.
 - **A host directory as home:** point `DSH_HOME_HOST` at it (owned by uid 1000);
   the file then lives there and the volume is not used.
 

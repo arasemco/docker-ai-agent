@@ -1,0 +1,51 @@
+# =============================================================================
+# Release: a tag must match versions.env, then every image is built, attested
+# and pushed.
+# =============================================================================
+name: Release
+
+on:
+  push:
+    tags: ["v*.*.*"]
+  workflow_dispatch: {}
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          fetch-depth: 0
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f
+
+      - name: Resolve registry
+        run: |
+          set -euo pipefail
+          registry_host="${GITHUB_SERVER_URL#*://}"
+          registry_host="${registry_host%/}"
+          owner="${GITHUB_REPOSITORY%%/*}"
+          {
+            echo "REGISTRY=${registry_host}/${owner}"
+            echo "REGISTRY_HOST=${registry_host}"
+            echo "CACHE_READ=true"
+            echo "CACHE_WRITE=true"
+          } >> "${GITHUB_ENV}"
+
+      - name: Log in to the registry
+        uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9
+        with:
+          registry: ${{ env.REGISTRY_HOST }}
+          username: ${{ github.repository_owner }}
+          password: ${{ secrets.GIT_TOKEN }}
+
+      - name: make check
+        run: make check
+
+      - name: Release
+        run: tooling/release.sh --push

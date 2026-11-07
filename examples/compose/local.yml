@@ -1,23 +1,36 @@
 # =============================================================================
-# Example: a machine-specific compose/local.yml
+# Example: a machine-specific docker-compose.local.yml
 # =============================================================================
-# Copy to compose/local.yml (gitignored) and pass it explicitly with -f. It is the place for a deployment's own
-# binds: source trees, read-only shares, a directory that replaces a shared
-# mount.
+# Copy to docker-compose.local.yml at the repository root (gitignored) and pass
+# it explicitly, after the tracked compose file:
 #
-# The service key must match the stack being extended:
-#   agent-base           this repository's own stack
-#   <service>            a child stack (see its docker-compose.yml)
+#   make up PROFILE=opencode LOCAL_COMPOSE=docker-compose.local.yml
+#   docker compose --profile opencode \
+#       -f docker-compose.yml -f docker-compose.local.yml up -d
 #
-# Examples below bind a host source tree read-write and a shared directory
-# read-only, which is a common layout:
+# It is the place for a deployment's own binds, devices and limits: source
+# trees, read-only shares, the agent tree, a directory that replaces a shared
+# mount. The service keys match the stack services.
 #
-#   cp examples/compose/local.yml compose/local.yml
+# The agent tree is read-only at the top; each stack's writable subpaths are
+# added separately in the real overlay (the dsh stack, for example, adds its
+# hooks, instructions, memory, plans, state and workspace).
 # =============================================================================
+
+x-local-volumes: &local-volumes
+  - ${HOME}/.agents:/home/agent/.agents:ro
+  - ${HOME}/Projects:/home/agent/Projects:rw
+  - ${HOME}/stacks:/home/agent/stacks:ro
 
 services:
   agent-base:
-    volumes:
-      - ${HOME}/Projects:/home/agent/Projects:rw
-      - ${HOME}/stacks:/home/agent/stacks:ro
-      - ${HOME}/stacks/000-templates:/home/agent/stacks/000-templates:rw
+    volumes: *local-volumes
+
+  opencode:
+    volumes: *local-volumes
+
+  dsh:
+    volumes: *local-volumes
+
+  claude:
+    volumes: *local-volumes

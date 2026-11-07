@@ -1,24 +1,7 @@
 # =============================================================================
-# Build and push the images — Gitea Actions only
+# Build and push the images. The target list comes from stack manifests; the
+# tag contract lives in versions.env and tooling/release.sh.
 # =============================================================================
-# Runs on this repository's Gitea instance. Registry host, namespace and
-# provenance all come from the Gitea context; nothing is configured per forge.
-#
-# Produces, in order:
-#   agent-base:<version> + :latest
-#   opencode:<version>    + :latest
-#   dsh:<version>         + :latest
-#   claude:<version>      + :latest
-#
-# Required repository secret:
-#   GIT_TOKEN   a Gitea access token with the "write:package" scope, created by
-#               the account that owns the registry namespace. The built-in
-#               GITEA_TOKEN is rejected by the container registry.
-#
-# Cache lives in the registry (<REGISTRY>/agent-base:buildcache). Pull requests
-# build without logging in and without pushing.
-# =============================================================================
-
 name: Build and push images
 
 on:
@@ -39,95 +22,78 @@ jobs:
     permissions:
       contents: read
       packages: write
-
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
         with:
-          # The OCI labels take the commit SHA and ref; a full history keeps tag
-          # lookups meaningful.
           fetch-depth: 0
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
+        uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f
 
-      # Resolves once, into $GITHUB_ENV, so later steps carry no environment
-      # block of their own. docker-bake.hcl reads REGISTRY, SOURCE_URL, GIT_SHA,
-      # GIT_REF and the cache flags straight from the environment.
-      - name: Resolve registry and provenance
+      - name: Resolve registry and cache policy
         run: |
           set -euo pipefail
-
-          # GITHUB_SERVER_URL looks like https://git.omesa.net
           registry_host="${GITHUB_SERVER_URL#*://}"
           registry_host="${registry_host%/}"
-
           owner="${GITHUB_REPOSITORY%%/*}"
-          registry="${registry_host}/${owner}"
-
-          # refs/heads/main -> main, refs/tags/v1.2.3 -> v1.2.3
-          git_ref="${GITHUB_REF#refs/tags/}"
-          git_ref="${git_ref#refs/heads/}"
-
-          # Pull requests are read-only: never log in, never publish a cache
-          # produced by unmerged code.
-          cache_write=true
-          if [ "${GITHUB_EVENT_NAME}" = "pull_request" ]; then
-              cache_write=false
-          fi
-
           {
-            echo "REGISTRY=${registry}"
+            echo "REGISTRY=${registry_host}/${owner}"
             echo "REGISTRY_HOST=${registry_host}"
-            echo "SOURCE_URL=${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}"
-            echo "GIT_SHA=${GITHUB_SHA}"
-            echo "GIT_REF=${git_ref}"
             echo "CACHE_READ=true"
-            echo "CACHE_WRITE=${cache_write}"
+            if [ "${GITHUB_EVENT_NAME}" = "pull_request" ]; then
+              echo "CACHE_WRITE=false"
+            else
+              echo "CACHE_WRITE=true"
+            fi
           } >> "${GITHUB_ENV}"
 
-      # Fail with an actionable message instead of docker's generic denial.
       - name: Check registry credentials
         if: github.event_name != 'pull_request'
         env:
           GIT_TOKEN: ${{ secrets.GIT_TOKEN }}
         run: |
           set -eu
-          if [ -z "${GIT_TOKEN}" ]; then
-            printf '%s\n' \
-              "::error::GIT_TOKEN is empty. Create a Gitea access token with the 'write:package' scope" \
-              "as ${GITHUB_REPOSITORY_OWNER} and add it as a repository secret named GIT_TOKEN."
+          [ -n "${GIT_TOKEN}" ] || {
+            printf '%s\n' "::error::GIT_TOKEN is empty; create a Gitea token with write:package and add it as a repository secret." >&2
             exit 1
-          fi
+          }
 
-      # The token belongs to the repository owner, whose namespace the images
-      # live in; the username must be that account, not the run's actor.
       - name: Log in to the registry
         if: github.event_name != 'pull_request'
-        uses: docker/login-action@v3
+        uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9
         with:
           registry: ${{ env.REGISTRY_HOST }}
           username: ${{ github.repository_owner }}
           password: ${{ secrets.GIT_TOKEN }}
 
-      # Build-time checks: shellcheck on every script and the tool matrix, in the
-      # image's "test" stage. Exports nothing.
-      - name: Build the test stage
-        uses: docker/bake-action@v7
-        with:
-          targets: test
+      - name: make check
+        run: make check
 
-      # The stacks build FROM agent-base, and one bake builds its targets in
-      # parallel, so the base is pushed first and the stacks read that tag. That
-      # is the only reason this is two steps rather than one.
-      - name: Build and push the base image
-        uses: docker/bake-action@v7
-        with:
-          targets: agent-base
-          push: ${{ github.event_name != 'pull_request' }}
+      - name: Build the base test stages
+        run: |
+          set -euo pipefail
+          tooling/bake.sh test
+          tooling/bake.sh test-node22
 
-      - name: Build and push the stacks
-        uses: docker/bake-action@v7
-        with:
-          targets: opencode,dsh,claude
-          push: ${{ github.event_name != 'pull_request' }}
+      - name: Build every stack test stage
+        run: |
+          set -euo pipefail
+          for id in $(tooling/stacks.sh --list); do
+            tooling/bake.sh "${id}-test"
+          done
+
+      - name: Build and push the base images
+        if: github.event_name != 'pull_request'
+        run: |
+          set -euo pipefail
+          tooling/bake.sh --push --provenance=mode=max --sbom=generator \
+            agent-base agent-base-node22
+
+      - name: Build and push the stack images
+        if: github.event_name != 'pull_request'
+        run: |
+          set -euo pipefail
+          targets="$(tooling/stacks.sh --list)"
+          # shellcheck disable=SC2086
+          tooling/bake.sh --push --provenance=mode=max --sbom=generator ${targets}

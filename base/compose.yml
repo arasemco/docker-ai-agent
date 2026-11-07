@@ -1,0 +1,10 @@
+# The base module: sandbox-only profile, no agent CLI. The shared daemon volume
+# is declared here because `extends` does not import top-level resources.
+services:
+  agent-base:
+    profiles: ["base"]
+    extends: {file: ../compose/common.yml, service: common}
+    image: ${AGENT_IMAGE:?run through make or tooling/versions.sh --export}
+
+volumes:
+  agent-docker:

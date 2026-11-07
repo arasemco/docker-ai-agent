@@ -38,11 +38,11 @@ usable credential is visible immediately.
 
 | Piece | Comes from |
 |---|---|
-| base image (Debian, agent user, s6 services, dockerd, toolchain) | `AGENT_BASE` build arg, default `agent-base:1.5.0` |
+| base image (Debian, agent user, s6 services, dockerd, toolchain) | `AGENT_BASE` build arg, default `agent-base:2.0.0` |
 | Node 22 | copied from the official Node image, pinned by digest (base ships Node 18) |
-| Claude Code | `npm install -g @anthropic-ai/claude-code@${CLAUDE_VERSION}` in `image/Dockerfile` |
-| launch line (idler) | `image/services.d/agent/run` |
-| sandbox (devices, seccomp, proxy, limits, mounts, skills) | the shared `common` service in `compose.common.yml` |
+| Claude Code | `npm install -g @anthropic-ai/claude-code@${CLAUDE_VERSION}` in `base/Dockerfile` |
+| launch line (idler) | `image/agent-launch.d/agent.sh` |
+| sandbox (devices, seccomp, proxy, limits, mounts, skills) | the shared `common` service in `compose/common.yml` |
 | s6 services, hooks, healthcheck, restart policy | agent-base |
 
 State lives under `/home/agent/.claude` (`CLAUDE_CONFIG_DIR`), a named volume:
@@ -59,19 +59,19 @@ State lives under `/home/agent/.claude` (`CLAUDE_CONFIG_DIR`), a named volume:
 | Document | Contents |
 |---|---|
 | [docs/index.md](docs/index.md) | overview and reading order |
-| [docs/configuration.md](docs/configuration.md) | variables, state, authentication, headless and remote-control use |
-| [docs/troubleshooting.md](docs/troubleshooting.md) | no terminal, not signed in, config not persisted, daemon missing |
+| [docs/reference/configuration.md](../../docs/reference/configuration.md) | variables, state, authentication, headless and remote-control use |
+| [docs/how-to/troubleshooting.md](../../docs/how-to/troubleshooting.md) | no terminal, not signed in, config not persisted, daemon missing |
 | [.agents/README.md](../../.agents/README.md) | working on this repository: map, invariants, checks |
 
 ## Layout
 
 | Path | Purpose |
 |---|---|
-| `image/Dockerfile` | the Claude Code layer on top of agent-base |
-| `image/services.d/agent/run` | the s6 agent service's launch line (the idler) |
+| `base/Dockerfile` | the Claude Code layer on top of agent-base |
+| `image/agent-launch.d/agent.sh` | the s6 agent service's launch line (the idler) |
 | `docker-compose.yml` | the stack: credentials and state volume |
-| `scripts/bake.sh` | builds and tags the image, deriving provenance from git |
-| `scripts/smoke.sh` | runtime check of a running stack |
+| `tooling/bake.sh` | builds and tags the image, deriving provenance from git |
+| `tooling/smoke.sh` | runtime check of a running stack |
 | `docker-bake.hcl` | bake targets, pins, OCI labels |
 | `docs/`, `.agents/` | documentation for users and for agents |
 

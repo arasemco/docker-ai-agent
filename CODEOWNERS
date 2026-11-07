@@ -1,0 +1,8 @@
+# Review ownership. The module boundary is the review boundary.
+/versions.env          @asemo
+/base/                 @asemo
+/compose/              @asemo
+/tooling/              @asemo
+/stacks/               @asemo
+/docs/                 @asemo
+/.gitea/               @asemo

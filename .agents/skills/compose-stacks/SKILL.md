@@ -1,96 +1,65 @@
 ---
 name: compose-stacks
-description: Change the shared common service in compose.common.yml (sandbox, environment, daemon volume) and the per-stack services in docker-compose.yml that extend it. Use when a task changes how a stack is put together, adds a shared concern, or adds a new stack.
+description: Change the shared common service, a stack's compose fragment, the root include index, or the host overlay. Use when adding a stack, adding a shared sandbox concern, or changing how compose fragments are assembled.
 metadata:
   area: compose
-  files: compose.common.yml, docker-compose.yml, makefile, scripts/smoke.sh
+  files: compose/common.yml, docker-compose.yml, stacks/*/compose.yml, makefile
 ---
 
 # Compose stacks
 
 ## Model
 
-`docker-compose.yml` has one service per stack, behind a profile. The shared
-sandbox, environment and daemon volume are the `common` service in
-`compose.common.yml`; every stack extends it:
+`docker-compose.yml` is an index: `name: agent` plus one `include:` entry per
+module. `base/compose.yml` and `stacks/<id>/compose.yml` hold the services.
+Every fragment extends `compose/common.yml`:
 
 ```yaml
-opencode:
-  profiles: ["opencode"]
-  extends: {file: ./compose.common.yml, service: common}
-  build: { context: ./stacks/opencode/image, target: opencode }
-  environment:
-    OPENCODE_SERVER_PASSWORD: "${OPENCODE_SERVER_PASSWORD:-changeme123}"
+services:
+  <id>:
+    profiles: ["<id>"]
+    extends: {file: ../../compose/common.yml, service: common}
+    image: ${<ID>_IMAGE:?run through make or tooling/versions.sh --export}
 ```
 
-`compose.common.yml` is not part of the project: it is only a source for
-`extends.file`, so it is never started. It must stay profile-less and
-image-less; otherwise `--profile base` selects every stack and stack builds
-inherit the base target.
+`compose/common.yml` is profile-less, image-less and build-less. It owns the
+sandbox devices, seccomp exceptions, default limits, proxy resolution and the
+daemon volume reference. It contains no host values.
 
-| Common service owns | Knobs |
-|---|---|
-| `init`/tty/restart, seccomp exceptions, devices, resource limits | `AGENT_HOSTNAME`, `AGENT_CPUS`, `AGENT_MEMORY` |
-| `AGENT_*` toggles and proxy resolution (`HTTP_PROXY` → `http_proxy` → `PROXY`) | `AGENT_DOCKERD*`, `AGENT_RESTART_MAX`, `PROXY`, `HTTP_PROXY`/`HTTPS_PROXY`/`ALL_PROXY`/`NO_PROXY` |
-| the inner daemon's data volume | `AGENT_DOCKER_VOLUME` |
+The daemon volume `agent-docker` is declared in `base/compose.yml`; `extends`
+does not import top-level resources. A stack declares its own top-level
+`volumes:` in its fragment.
 
-A stack service carries only its own build, environment, ports and volumes; it
-inherits the common environment and daemon volume. It has no `command:` and no
-launch line: what the CLI runs belongs to the image's s6 service
-(`stacks/<name>/image/services.d/agent/run`). A container `CMD` is a one-off
-foreground command run by s6-overlay, not the agent's launch line.
+## Images
 
-## Adding a shared concern
+Compose carries no `build:` keys. `tooling/bake.sh` builds; `make up` exports
+the image references and runs `docker compose up --no-build`.
 
-1. Put it in `compose.common.yml`'s `common` service if every stack needs it.
-2. If it mounts a named volume, declare that volume in `docker-compose.yml`;
-   `extends` copies service config, not the top-level `volumes:` block.
-3. Document the knob in `docs/compose.md` and `docs/configuration.md`.
+## Add a stack
 
-## Adding a stack
+1. Create `stacks/<id>/` with `stack.yaml`, `image/`, `compose.yml`, `bake.hcl`,
+   `test/probe.sh`, docs.
+2. Add one include entry to `docker-compose.yml`.
+3. Run `make check`; `tooling/stacks.sh --check` validates the module.
 
-1. Add a service to `docker-compose.yml` with `profiles: ["<name>"]` and
-   `extends: {file: ./compose.common.yml, service: common}`.
-2. Add its build, ports, environment and state volumes; do not repeat the
-   common environment or the daemon volume.
-3. Add a target in `docker-bake.hcl` and `PROFILE` support in
-   `makefile`/`scripts/smoke.sh`.
+Nothing else lists the stack; make, smoke, CI and docs use
+`tooling/stacks.sh`.
 
-## Combining
+## Host overlay
+
+The deployment's host values live in gitignored `docker-compose.local.yml`:
 
 ```bash
-docker compose --profile opencode up -d     # OpenCode Web UI
-docker compose --profile dsh up -d          # dsh Web UI (host networking)
-docker compose --profile base up -d         # sandbox only, no agent CLI
-make up PROFILE=dsh
+make up PROFILE=<id> LOCAL_COMPOSE=docker-compose.local.yml
 ```
 
-A gitignored `compose/local.yml` holds per-host additions; pass it explicitly
-with `-f`. `examples/compose/local.yml` is a starting point.
-
-## Rules that are easy to break
-
-- **Common stays generic.** No profile, image, build, command or deployment
-  default in `compose.common.yml`.
-- **No deployment values in the core.** A shared setting may read an environment
-  variable, but must not default to a host, IP or personal path.
-- **Volumes.** The daemon volume is inherited; a stack adds only its own state
-  volumes. Declare every named volume in `docker-compose.yml`.
-- **Relative paths.** Build contexts are relative to `docker-compose.yml`:
-  `./image` for the base, `./stacks/<name>/image` for a stack.
-- **No commands.** A launch line in compose hides what s6 runs and duplicates
-  the image; keep it in `services.d/agent/run`.
+`examples/compose/local.yml` is the placeholder starting point. Never put host
+binds, devices or limits in `compose/common.yml`.
 
 ## Verify
 
 ```bash
-docker compose config >/dev/null
-for p in base opencode dsh claude; do docker compose --profile "$p" config >/dev/null; done
-make config PROFILE=opencode
-scripts/smoke.sh opencode                   # running stack
+make check
+for p in $(tooling/stacks.sh --profiles); do docker compose --profile "$p" config >/dev/null; done
+tooling/bake.sh --print all >/dev/null
 ```
-
-## References
-
-- [docs/compose.md](../../../docs/compose.md)
-- [docs/configuration.md](../../../docs/configuration.md)

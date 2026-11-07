@@ -1,0 +1,16 @@
+id: opencode
+kind: stack
+title: OpenCode
+description: OpenCode CLI and Web UI.
+base:
+  variant: ""
+version_key: OPENCODE_VERSION
+launch:
+  mode: service
+health:
+  probe: fragment
+ports: [4096]
+tests:
+  test: opencode-test
+docs:
+  summary: OpenCode CLI/Web UI, providers, state, healthcheck.

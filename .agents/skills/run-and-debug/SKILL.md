@@ -3,7 +3,7 @@ name: run-and-debug
 description: Run agent-base in a container and diagnose misbehaviour — the inner Docker daemon not starting, workspace ownership errors, the container exiting immediately, unhealthy status, or unexpected exit codes. Use when a stack starts but does not work as expected.
 metadata:
   area: runtime
-  files: image/rootfs/etc/services.d/, image/rootfs/etc/cont-init.d/, scripts/smoke.sh
+  files: base/rootfs/etc/services.d/, base/rootfs/etc/cont-init.d/, tooling/smoke.sh
 ---
 
 # Run and debug
@@ -21,10 +21,10 @@ docker compose --profile opencode exec --user 1000 opencode bash   # agent's she
 
 | Question | Where |
 |---|---|
-| did the daemon start, and why not | `docker compose exec agent-base cat /home/agent/.docker/dockerd.log` |
-| what are the services doing | `docker compose exec agent-base sh -c '/command/s6-svstat /run/service/dockerd; /command/s6-svstat /run/service/agent'` |
+| did the daemon start, and why not | `docker compose --profile base exec agent-base cat /home/agent/.docker/dockerd.log` |
+| what are the services doing | `docker compose --profile base exec agent-base sh -c '/command/s6-svstat /run/service/dockerd; /command/s6-svstat /run/service/agent'` |
 | how did the CLI end | `/run/agent/exit-code` and the container log (`[agent]` lines) |
-| is the image healthy overall | `scripts/smoke.sh` |
+| is the image healthy overall | `tooling/smoke.sh` |
 
 ## Failure patterns
 
@@ -41,7 +41,7 @@ the right form per launcher.
 
 **`dockerd exited during startup` with mount errors** — the container lacks
 `seccomp:unconfined`, `systempaths=unconfined`, `/dev/fuse` or `/dev/net/tun`.
-Every compose service extends the `common` service in `compose.common.yml`; a
+Every compose service extends the `common` service in `compose/common.yml`; a
 bare `docker run` must pass these settings itself.
 
 **`ERROR: /home/agent/workspace is not writable`** — a bind source that uid 1000
@@ -49,7 +49,7 @@ cannot write: a missing directory Docker created root-owned, or a rootless host
 where bind mounts appear root-owned inside. Create the directory owned by uid
 1000 on the host, use a named volume, or run the outer daemon rootful.
 
-**Container exits immediately** — the launch line in `image/services.d/agent/run`
+**Container exits immediately** — the launch line in `image/agent-launch.d/agent.sh`
 returned. The base image launches `agent-idle` and stays up; a stack launches
 its CLI, so its exit is the CLI's. A container `CMD` is run by s6 as a one-off
 foreground command after services start, not as the launch line.
@@ -63,11 +63,11 @@ The CLI's own status is in `/run/agent/exit-code`.
 ## Verify a fix
 
 ```bash
-scripts/smoke.sh                    # full runtime check
+tooling/smoke.sh                    # full runtime check
 SMOKE_REQUIRE_DOCKER=1 make smoke   # fail instead of SKIP where the daemon must work
 ```
 
 ## References
 
-- [docs/troubleshooting.md](../../../docs/troubleshooting.md)
-- [docs/architecture.md](../../../docs/architecture.md)
+- [docs/how-to/troubleshooting.md](../../../docs/how-to/troubleshooting.md)
+- [docs/explanation/architecture.md](../../../docs/explanation/architecture.md)

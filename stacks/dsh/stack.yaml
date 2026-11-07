@@ -1,0 +1,17 @@
+id: dsh
+kind: stack
+title: DeepSeek Harness (dsh)
+description: DeepSeek Harness Web UI, loopback-only.
+base:
+  variant: node22
+version_key: DSH_VERSION
+launch:
+  mode: service
+health:
+  probe: fragment
+ports: [3080]
+tests:
+  test: dsh-test
+  integration: dsh-test
+docs:
+  summary: dsh Web UI, host networking, credentials, healthcheck.

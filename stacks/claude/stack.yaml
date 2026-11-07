@@ -1,0 +1,15 @@
+id: claude
+kind: stack
+title: Claude Code
+description: Claude Code interactive CLI.
+base:
+  variant: node22
+version_key: CLAUDE_VERSION
+launch:
+  mode: idle
+health:
+  probe: builtin
+tests:
+  test: claude-test
+docs:
+  summary: Claude Code CLI, authentication, interactive and headless use.

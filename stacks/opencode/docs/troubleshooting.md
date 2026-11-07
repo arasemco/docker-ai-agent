@@ -41,8 +41,8 @@ causes:
 
 `opencode.jsonc` is read from `/home/agent/.config/opencode/` inside the
 container. If `OPENCODE_CONFIG_HOST` points at a host directory, edit that
-directory, not the file in this repository: the image no longer seeds a config.
-`examples/config/opencode.jsonc` is a template to copy.
+directory, not the file in this repository: the image seeds no config. Keep a
+JSONC config you control and place it in that directory.
 
 ## Exit status looks wrong
 

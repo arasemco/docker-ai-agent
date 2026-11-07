@@ -1,0 +1,27 @@
+services:
+  opencode:
+    profiles: ["opencode"]
+    extends: {file: ../../compose/common.yml, service: common}
+    image: ${OPENCODE_IMAGE:?run through make or tooling/versions.sh --export}
+    hostname: opencode
+    ports:
+      # Loopback by default: the password has a weak fallback. Set
+      # OPENCODE_BIND_IP=0.0.0.0 to publish on the LAN.
+      - "${OPENCODE_BIND_IP:-127.0.0.1}:${OPENCODE_PORT:-4096}:${OPENCODE_PORT:-4096}"
+    environment:
+      OPENCODE_PORT: "${OPENCODE_PORT:-4096}"
+      OPENCODE_SERVER_PASSWORD: "${OPENCODE_SERVER_PASSWORD:-changeme123}"
+      ANTHROPIC_API_KEY: "${ANTHROPIC_API_KEY:-}"
+      OPENAI_API_KEY: "${OPENAI_API_KEY:-}"
+      GEMINI_API_KEY: "${GEMINI_API_KEY:-}"
+      OLLAMA_BASE_URL: "${OLLAMA_BASE_URL:-}"
+      OLLAMA_API_KEY: "${OLLAMA_API_KEY:-}"
+    volumes:
+      - ${OPENCODE_CONFIG_HOST:-opencode-config}:/home/agent/.config/opencode
+      - ${OPENCODE_DATA_HOST:-opencode-data}:/home/agent/.local/share/opencode
+      - ${OPENCODE_STATE_HOST:-opencode-state}:/home/agent/.local/state/opencode
+
+volumes:
+  opencode-config:
+  opencode-data:
+  opencode-state:

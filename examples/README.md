@@ -8,13 +8,12 @@ edit.
 | Path | What it shows |
 |---|---|
 | `env/proxy.env` | proxy values for a private network (one `PROXY=`, or per-scheme) |
-| `compose/local.yml` | a machine-specific overlay: extra binds, per-host tweaks |
+| `compose/local.yml` | a machine-specific host overlay: the agent tree, extra binds, per-host tweaks |
 | `child-image/` | the smallest child image on top of agent-base, plus its stack |
-| `skills/example-skill/` | template for a shared Agent Skill (`SKILL.md`) |
 
 Where the real files live (both gitignored):
 
 - `.env` — copy `.env.example`, then merge whichever `env/` file applies
-- `compose/local.yml` — copy `compose/local.yml` from here
+- `docker-compose.local.yml` — copy `examples/compose/local.yml` to the repository root
 
-See the repository README's "Overrides" section for the full picture.
+See [docs/reference/compose-model.md](../docs/reference/compose-model.md#local-overrides) for the invocation.

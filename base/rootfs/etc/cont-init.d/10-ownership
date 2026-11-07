@@ -1,0 +1,57 @@
+#!/command/with-contenv bash
+# =============================================================================
+# cont-init.d/10-ownership — runs as root, once, before any service starts.
+#
+# Creates the state directories the image and the modules need, fixes ownership
+# of mount points and applies the per-stack state manifests. It also prepares
+# /run/agent for the restart bookkeeping written by the services.
+# =============================================================================
+set -euo pipefail
+
+# shellcheck source=/dev/null
+. /usr/local/lib/agent-base/lib.sh
+
+AGENT_USER="${AGENT_USER:-agent}"
+agent_home_dir="$(agent_home)"
+uid="$(agent_uid)"
+gid="$(agent_gid)"
+
+log "preparing ${agent_home_dir} for ${AGENT_USER} (uid ${uid}, gid ${gid})"
+
+for dir in \
+    "${agent_home_dir}" \
+    "${agent_home_dir}/.docker" \
+    "${agent_home_dir}/.docker/run" \
+    "${agent_home_dir}/.local/share/docker" \
+    "${agent_home_dir}/.local/state" \
+    "${agent_home_dir}/.local/bin" \
+    "${agent_home_dir}/.config" \
+    "${agent_home_dir}/.cache" \
+    "${agent_home_dir}/.ssh"; do
+    mkdir -p "${dir}"
+    chown "${uid}:${gid}" "${dir}" 2>/dev/null || true
+done
+chmod 0700 "${agent_home_dir}/.docker/run"
+chmod 0700 "${agent_home_dir}/.ssh"
+
+mkdir -p /run/agent
+chown "${uid}:${gid}" /run/agent
+chmod 0755 /run/agent
+
+# Per-stack state manifests: "path[:mode]" with $AGENT_HOME expanded.
+shopt -s nullglob
+for manifest in /etc/agent-state.d/*.paths; do
+    while IFS= read -r line || [ -n "${line}" ]; do
+        case "${line}" in ''|'#'*) continue ;; esac
+        path="${line%%:*}"
+        mode=""
+        [ "${line}" != "${path}" ] && mode="${line#*:}"
+        path="${path//\$AGENT_HOME/${agent_home_dir}}"
+        mkdir -p "${path}"
+        chown "${uid}:${gid}" "${path}" 2>/dev/null || true
+        [ -n "${mode}" ] && chmod "${mode}" "${path}" 2>/dev/null || true
+    done < "${manifest}"
+done
+shopt -u nullglob
+
+chmod 0755 /etc/agent-entrypoint.d

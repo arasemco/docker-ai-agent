@@ -1,99 +1,74 @@
 # ai/agent
 
-One base image and every agent stack that runs on it.
-
-`ai/agent` packages the parts an AI coding-agent container needs — a glibc
-distribution with Node, one unprivileged user, an s6-supervised rootless Docker
-daemon, a development toolchain, hooks and a healthcheck — and then layers one
-agent CLI per stack:
+One sandbox image (`base/`) and one module per agent CLI (`stacks/`). Each stack
+is an independent image built `FROM` the base; compose runs the published image
+references, and `tooling/` owns build, checks and release.
 
 | Stack | What it runs |
 |---|---|
-| [`stacks/opencode`](stacks/opencode/README.md) | the OpenCode CLI and Web UI on a published loopback port |
-| [`stacks/deepseek-harness`](stacks/deepseek-harness/README.md) | the DeepSeek Harness (`dsh`) Web UI, reachable through host networking |
-| [`stacks/claude`](stacks/claude/README.md) | the Claude Code CLI, run on demand from `make exec` (interactive TUI, no local UI) |
-
-Each stack runs behind its own compose profile, so `--profile <name> up`
-starts exactly one; the shared sandbox is extended from `compose.common.yml`
-by every stack.
-
-Nothing in the shared parts is host-, person- or project-specific: no registry,
-no proxy, no host paths, no resource limits, no author metadata.
+| [`stacks/opencode`](stacks/opencode/README.md) | OpenCode CLI and Web UI on a published loopback port |
+| [`stacks/dsh`](stacks/dsh/README.md) | DeepSeek Harness Web UI, loopback-only through host networking |
+| [`stacks/claude`](stacks/claude/README.md) | Claude Code CLI, run from an exec session |
+| `base` | sandbox only: no agent CLI |
 
 ## Quick start
 
 ```bash
 cp .env.example .env
-
-make up PROFILE=opencode          # build base + opencode, start the Web UI
-make up PROFILE=dsh               # build base + dsh, start its Web UI
-make up PROFILE=claude            # build base + claude, then: make exec PROFILE=claude
+make up PROFILE=opencode    # builds the base variant + stack, then starts it
+make up PROFILE=dsh
+make up PROFILE=claude      # then: make exec PROFILE=claude
 ```
 
-Equivalently, without the makefile:
+`make up` builds through `tooling/bake.sh` and runs compose with the exported
+image references. Compose itself carries no `build:` keys. A host overlay is
+optional:
 
 ```bash
-docker compose --profile opencode up -d --build
-docker compose --profile opencode config  # see what a profile resolves to
+make up PROFILE=dsh LOCAL_COMPOSE=docker-compose.local.yml
 ```
 
-Everything is optional: every value in `.env.example` is a default, and the
-common service reads its knobs from the environment.
-
-## How it is put together
+## Module tree
 
 ```
-image/                 the base image (Dockerfile + rootfs/)
-compose.common.yml     shared sandbox/env/volume, extended by every stack
-docker-compose.yml     one service per stack, each behind a profile
-stacks/<name>/         image/ (Dockerfile + files), docs/, examples/
-docker-bake.hcl        targets: agent-base, opencode, dsh (+ dev and test)
-scripts/               bake.sh (build + provenance), smoke.sh (runtime check)
-.gitea/workflows/      CI for this repository's Gitea instance (build + push)
-docs/                  documentation for users
-.agents/               orientation, checks and skills for coding agents
+versions.env              every pin, version and image reference
+base/                     sandbox image, contract, compose and bake fragments
+stacks/<id>/              stack.yaml, image/, compose.yml, bake.hcl, test/, docs/
+compose/common.yml        shared sandbox service
+docker-compose.yml        include index for the module fragments
+tooling/                  build, check, smoke, generate, release
+tests/                    unit + contract checks; integration/e2e homes
+config/knobs.env          deployment knob registry
+docs/                     user documentation; docs/reference is generated
+examples/                 deployment starting points, never used by the build
 ```
 
-A stack service carries only its own concerns — build, ports, credentials,
-state volumes — because it extends the common service:
-
-```yaml
-opencode:
-  profiles: ["opencode"]
-  extends: {file: ./compose.common.yml, service: common}
-  environment:
-    OPENCODE_SERVER_PASSWORD: "${OPENCODE_SERVER_PASSWORD:-changeme123}"
-  build: { context: ./stacks/opencode/image, target: opencode }
-  # No command: the image's s6 agent service defines the launch line
-  # (stacks/opencode/image/services.d/agent/run).
-```
-
-## Building
+## Commands
 
 ```bash
-make build                    # base image, then the PROFILE stack
-make build-all                # base image, then every stack
-make test                     # base test stage: shellcheck + tool matrix
-make test-dsh                 # dsh test stage: real API key + headless run
-scripts/bake.sh --push        # publish (registry derived from the git remote)
+make check                  # hermetic contract checks
+make build PROFILE=opencode # base + one stack
+make build-all              # base variants + every stack
+make up PROFILE=dsh         # build and run
+make smoke PROFILE=dsh      # probe the running stack
+make generate               # regenerate docs/reference and .env.example
+make test                   # base test stage
+tooling/bake.sh <target>    # the build entry point
 ```
-
-The base image is built first and the stacks build `FROM` it, so a single
-`make build-all` produces a consistent set under the same tag.
 
 ## Documentation
 
 | Document | Contents |
 |---|---|
-| [docs/index.md](docs/index.md) | overview and reading order |
-| [docs/architecture.md](docs/architecture.md) | image contents, boot sequence, services, state |
-| [docs/compose.md](docs/compose.md) | common service, profiles, stack services |
-| [docs/configuration.md](docs/configuration.md) | variables, volumes, hooks, healthcheck |
-| [docs/build.md](docs/build.md) | targets, pins, provenance, publishing, CI |
-| [docs/troubleshooting.md](docs/troubleshooting.md) | known failure modes |
-| [stacks/opencode/docs/](stacks/opencode/docs/index.md) | OpenCode-specific configuration and troubleshooting |
-| [stacks/deepseek-harness/docs/](stacks/deepseek-harness/docs/index.md) | dsh-specific configuration and troubleshooting |
-| [.agents/README.md](.agents/README.md) | working on this repository |
+| [docs/index.md](docs/index.md) | reading order and module map |
+| [docs/explanation/architecture.md](docs/explanation/architecture.md) | base image, boot sequence, launch/health/state contracts |
+| [docs/reference/compose-model.md](docs/reference/compose-model.md) | common service, module fragments, profiles, host overlay |
+| [docs/reference/configuration.md](docs/reference/configuration.md) | environment, generated reference, hooks |
+| [docs/how-to/build-and-release.md](docs/how-to/build-and-release.md) | versions, targets, release, CI |
+| [docs/how-to/troubleshooting.md](docs/how-to/troubleshooting.md) | known failure modes |
+| [docs/adr/](docs/adr/) | architecture decisions |
+
+Working on the repository? Start at [.agents/README.md](.agents/README.md).
 
 ## License
 

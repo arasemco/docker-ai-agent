@@ -1,0 +1,9 @@
+id: base
+kind: base
+title: agent-base
+description: Sandbox-only base image; no agent CLI.
+version_key: BASE_VERSION
+launch:
+  mode: idle
+health:
+  probe: builtin

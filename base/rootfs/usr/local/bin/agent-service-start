@@ -1,0 +1,39 @@
+#!/bin/bash
+# =============================================================================
+# agent-service-start — shared launcher for the s6 `agent` service.
+#
+# Always called with no arguments by /etc/services.d/agent/run. It waits
+# (bounded) for the dockerd service to announce readiness, records the start
+# time used by services.d/agent/finish, drops to AGENT_USER and hands control
+# to agent-run, which reads /etc/agent-launch.d/agent.sh.
+# =============================================================================
+set -euo pipefail
+
+# shellcheck source=/dev/null
+. /usr/local/lib/agent-base/lib.sh
+
+: "${AGENT_DOCKERD:=1}"
+: "${AGENT_DOCKERD_TIMEOUT:=30}"
+
+if [ "$#" -ne 0 ]; then
+    log "ERROR: agent-service-start takes no arguments; put the launch line in /etc/agent-launch.d/agent.sh"
+    exit 2
+fi
+
+if [ "${AGENT_DOCKERD}" != "0" ]; then
+    for _ in $(seq 1 50); do
+        [ -e /run/service/dockerd ] && break
+        sleep 0.1
+    done
+    if [ -e /run/service/dockerd ]; then
+        if ! /command/s6-svwait -U -t "$(( AGENT_DOCKERD_TIMEOUT * 1000 ))" /run/service/dockerd 2>/dev/null; then
+            log "WARNING: dockerd did not report ready within ${AGENT_DOCKERD_TIMEOUT}s; starting the agent anyway (docker may be unavailable)"
+        fi
+    else
+        log "WARNING: no dockerd service registered; starting the agent without waiting"
+    fi
+fi
+
+date +%s > /run/agent/agent.started 2>/dev/null || true
+
+exec /command/s6-setuidgid "${AGENT_USER:-agent}" /usr/local/bin/agent-run

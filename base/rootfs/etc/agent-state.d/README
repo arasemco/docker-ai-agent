@@ -1,0 +1,9 @@
+# Per-stack state directory manifests.
+#
+# One file per stack, e.g. dsh.paths, with one entry per line:
+#
+#   $AGENT_HOME/.dsh:0700
+#
+# 10-ownership creates each path (and its parents) and chowns it to the agent
+# user. $AGENT_HOME is expanded from the account's home directory; no literal
+# uid and no literal /home/<user> path is needed in a stack Dockerfile.

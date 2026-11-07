@@ -1,0 +1,4 @@
+$AGENT_HOME/.config/opencode:0700
+$AGENT_HOME/.local/share/opencode:0700
+$AGENT_HOME/.local/state/opencode:0700
+$AGENT_HOME/.cache/opencode:0700

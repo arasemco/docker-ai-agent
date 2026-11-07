@@ -1,0 +1,58 @@
+#!/bin/bash
+# =============================================================================
+# agent-healthcheck — the single HEALTHCHECK for every image.
+#
+# AGENT_HEALTHCHECK selects the check (default: auto):
+#   auto       AGENT_HEALTH_URL when set, then the s6 `agent` service is up,
+#              then every /etc/agent-healthcheck.d/*.sh fragment
+#   stack      only the per-stack fragments
+#   docker     only the daemon check (strict)
+#   agent      only the s6 `agent` service check
+#   url:<url>  only an HTTP GET expecting 2xx/3xx
+#   off        always healthy
+# =============================================================================
+set -u
+
+# shellcheck source=/dev/null
+. /usr/local/lib/agent-base/lib.sh
+
+mode="${AGENT_HEALTHCHECK:-auto}"
+fail() { printf 'healthcheck: %s\n' "$*" >&2; exit 1; }
+warn() { printf 'healthcheck: warning: %s\n' "$*" >&2; }
+
+check_docker() { timeout 8 docker info >/dev/null 2>&1 || fail "rootless dockerd is not responding (see ~/.docker/dockerd.log)"; }
+check_agent() {
+    local status
+    for _ in 1 2 3 4 5; do [ -e /run/service/agent ] && break; sleep 1; done
+    [ -e /run/service/agent ] || fail "the s6 agent service is not registered"
+    status="$(/command/s6-svstat /run/service/agent 2>&1)" || fail "cannot read the s6 agent service state: ${status}"
+    case "$status" in up*) return 0 ;; *) fail "the s6 agent service is not up (${status})" ;; esac
+}
+check_url() { curl -fsS -o /dev/null --max-time 6 "$1" || fail "GET $1 did not answer successfully"; }
+check_fragments() {
+    shopt -s nullglob
+    local found=0 frag
+    for frag in /etc/agent-healthcheck.d/*.sh; do
+        found=1
+        "${frag}" || fail "stack healthcheck fragment failed: ${frag##*/}"
+    done
+    shopt -u nullglob
+}
+
+case "$mode" in
+    off) exit 0 ;;
+    docker) check_docker ;;
+    agent) check_agent ;;
+    url:*) check_url "${mode#url:}" ;;
+    stack) check_fragments ;;
+    auto)
+        [ -n "${AGENT_HEALTH_URL:-}" ] && check_url "$AGENT_HEALTH_URL"
+        check_agent
+        check_fragments
+        if [ "${AGENT_DOCKERD:-1}" != 0 ] && ! timeout 8 docker info >/dev/null 2>&1; then
+            warn "rootless dockerd is not responding (see ~/.docker/dockerd.log); the agent is unaffected"
+        fi
+        ;;
+    *) fail "unknown AGENT_HEALTHCHECK mode '$mode' (expected auto|stack|docker|agent|url:<url>|off)" ;;
+esac
+exit 0

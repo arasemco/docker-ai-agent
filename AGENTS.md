@@ -2,86 +2,43 @@
 
 Instructions for AI coding agents working in this repository.
 
-**Read [`.agents/README.md`](.agents/README.md) first** — it has the repository map,
-the invariants that are easy to break, and the checks to run. User-facing
-documentation lives in [`docs/`](docs/index.md); this file is only the short
-version.
-
-Task-specific skills are in [`.agents/skills/`](.agents/skills/): load the one
-that matches the job (`work-on-the-image`, `compose-stacks`,
-`build-and-publish`, `run-and-debug`, `child-image`) before starting.
+Read [`.agents/README.md`](.agents/README.md) first: it maps the module tree,
+the invariants and the checks. User documentation lives in [`docs/`](docs/index.md).
 
 ## Hard rules
 
-1. The base image contains no CLI: an agent stack lives under `stacks/<name>/`
-   and builds `FROM agent-base`.
-2. Do not end a Dockerfile with `USER 1000:1000`; `/init` must be PID 1 as root.
-3. No host-specific values in the core: no IPs, hostnames, registry paths or
-   personal directories outside `examples/`.
-4. The common service in `compose.common.yml` owns the sandbox, environment and
-   daemon volume; each stack service adds only its own build, ports, credentials
-   and state volumes.
-5. Comments and docs describe what the code does and why it must — not the
-   history of the change or a conversation.
-6. Bump `BASE_VERSION` in `docker-bake.hcl` whenever `image/` changes.
-7. Keep everything pinned: base image by digest, s6 by version + sha256, CLIs by
-   exact version.
-8. Record who did the work: commit through `scripts/agent-commit.sh` with the
-   model that did it and the correct mode (see below).
-
-## Commit attribution
-
-Every commit records which model did the work and which vendor it belongs to.
-The author name is the model id — not the CLI and not the vendor — and the
-email is that vendor's no-reply address. Use the wrapper; never edit
-`.git/config`, and never pass `user.name`/`user.email` to `git commit` directly.
-
-| Model id (examples) | Vendor email |
-|---|---|
-| `DeepSeek-V4.1-Flash-1017` | `noreply@deepseek.com` |
-| `claude-sonnet-4-5` | `noreply@anthropic.com` |
-| `gpt-*`, `o1-*`, `o3-*`, `o4-*`, `chatgpt-*` | `noreply@openai.com` |
-| `gemini-*` | `noreply@google.com` |
-| `grok-*` | `noreply@x.ai` |
-| `mistral-*`, `mixtral-*` | `noreply@mistral.ai` |
-| anything else | pass `--vendor` (e.g. `--vendor noreply@localhost`) |
-
-- **Human-directed** (default) — the human asked for the change. The commit
-  keeps the repository's configured author and committer and gains a
-  `Co-authored-by: <model> <vendor>` trailer:
-
-  ```bash
-  scripts/agent-commit.sh --model DeepSeek-V4.1-Flash-1017 -m "Add the Claude Code stack"
-  ```
-
-- **Autonomous** — the agent initiated the work. The commit is authored and
-  committed by the model for that commit only, so the repository identity is
-  untouched:
-
-  ```bash
-  scripts/agent-commit.sh --model DeepSeek-V4.1-Flash-1017 --autonomous -m "Refresh dependencies"
-  ```
-
-Pass the exact provider build id the session runs (from its configuration),
-not a family alias, product, or CLI name: `DeepSeek-V4.1-Flash-1017`,
-`claude-sonnet-4-5`, and so on. Decide the
-mode per commit, not per session: a human asking for a commit makes that commit
-human-directed even if earlier ones were autonomous, and vice versa. The
-wrapper skips the trailer when the message already contains one, so an agent
-CLI that adds its own co-author line does not duplicate it.
-
-In a repository without `scripts/agent-commit.sh`, apply the same rule
-directly: human-directed commits use
-`git commit --trailer "Co-authored-by: <model> <vendor>"`, and autonomous
-commits use `git -c user.name="<model>" -c user.email="<vendor>" commit`.
+1. The base image contains no agent CLI. A CLI lives in a stack module under
+   `stacks/<id>/` and builds `FROM` the base image.
+2. Do not end a Dockerfile with `USER 1000:1000`; `/init` must stay PID 1 as root.
+3. No host-specific values in the core: no IPs, hostnames, registry paths,
+   personal directories or host binds outside `examples/` and the ignored host
+   overlay. The generic core starts at `base/`, `compose/common.yml` and
+   `stacks/*/image`.
+4. `versions.env` is the only file that carries a version, digest or image
+   reference. Dockerfiles, compose and bake take the values as required inputs.
+5. The base contract in `base/CONTRACT.md` is versioned. A breaking change bumps
+   `base/CONTRACT` and the base major version; every stack asserts the contract
+   in its test stage.
+6. One module per fact: a stack manifest, a compose fragment, a bake fragment,
+   a launch file, a state manifest, a probe and its docs live in the same module.
+   Discover stacks through `tooling/stacks.sh`, never enumerate them by hand.
+7. Keep inputs pinned: base by digest, s6 by version + sha256, CLIs by exact
+   version. The registry prefix and OCI labels come from `tooling/provenance.sh`.
+8. Record who did the work in every commit. There is no in-repo wrapper: use the
+   global `git-commit` skill, or apply its rule directly — the model id as
+   author, the vendor no-reply address as email, a `Co-authored-by` trailer for
+   human-directed work, `git -c user.name=... user.email=...` for autonomous
+   work.
 
 ## Verify before you finish
 
 ```bash
-shellcheck image/rootfs/usr/local/bin/* scripts/*.sh
-scripts/bake.sh test     # builds the image, runs shellcheck + tool matrix
-make smoke               # real container: services, health, tool matrix
+make check                  # hermetic: links, manifests, versions, compose, bake, tests
+make generate-check         # reference pages and .env.example are current
+tooling/bake.sh test        # base image test stage
+tooling/bake.sh test-node22 # Node 22 base test stage
+make smoke PROFILE=<id>     # running stack; SKIP for the daemon is expected on rootless hosts
 ```
 
-`make smoke` printing `SKIP` for the rootless daemon is expected on hosts whose
-own Docker is rootless.
+Image builds: `tooling/bake.sh <target>`; running: `make up PROFILE=<id>`. Compose
+carries no `build:` keys — the bake wrapper is the only build entry point.

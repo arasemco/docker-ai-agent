@@ -1,68 +1,53 @@
 ---
 name: work-on-the-image
-description: Change the agent-base image itself — packages, the agent user, s6 services, the agent launch line, environment defaults — and land it with the required version bump and checks. Use when a task touches image/ or changes a runtime default.
+description: Change the agent-base image — packages, the agent user, s6 services, the launch/health/state contracts, or a runtime default — and land it with the required version bump and checks. Use when a task touches base/ or changes a runtime default.
 metadata:
   area: image
-  files: image/Dockerfile, image/rootfs/
+  files: base/Dockerfile, base/rootfs/, base/CONTRACT.md, versions.env
 ---
 
 # Work on the image
 
 ## Ground rules
 
-- The image is **generic**: no host names, IPs, registry paths, personal
-  directories or project names. Those belong in `examples/` or a consumer's
-  `.env` / `compose/local.yml`.
-- **Package managers only**: apt for system packages, PyPI/`pipx` for Python,
-  npm for Node CLIs. No `curl | sh` installers, no unpacked release tarballs.
-- **Everything pinned**: base image by digest, s6-overlay by version + per-arch
-  sha256, Docker Engine / uv / CLIs by exact version.
-- **No `USER` directive at the end.** `/init` must stay PID 1 as root; services
-  drop to the agent user with `/command/s6-setuidgid`.
-- **Bump `BASE_VERSION`** in `docker-bake.hcl` for any change under `image/`.
-  Child images pin that tag; reusing it silently breaks them.
+- The base is generic: no host names, IPs, registry paths, personal directories
+  or host binds. Host values live in the host overlay.
+- `versions.env` is the only pin source. The Dockerfile takes required `ARG`s;
+  never add a default copy of a pin.
+- The identity is frozen: `agent`, uid/gid 1000, home `/home/agent`.
+- No `USER` at the end; `/init` stays PID 1 as root.
+- A breaking contract change bumps `base/CONTRACT` and the base major version.
 
 ## Where things live
 
 | Concern | File |
 |---|---|
-| base digest, package blocks, uv, docker-ce, ENV, WORKDIR | `image/Dockerfile` |
-| service launcher, CLI runner, healthcheck, selftest | `image/rootfs/usr/local/bin/`, `image/rootfs/usr/local/lib/agent-base/` |
-| stage-2 preparation (ownership, directories) | `image/rootfs/etc/cont-init.d/10-prepare` |
-| longruns (`dockerd`, `agent`) | `image/rootfs/etc/services.d/*/{run,finish}` |
-| hooks directory | `image/rootfs/etc/agent-entrypoint.d/` |
+| base inputs, package blocks, ENV | `base/Dockerfile`, `versions.env` |
+| launch, health, state, lib | `base/rootfs/usr/local/bin/`, `base/rootfs/usr/local/lib/agent-base/` |
+| boot preparation | `base/rootfs/etc/cont-init.d/{10-ownership,20-subid,30-workspace}` |
+| longruns | `base/rootfs/etc/services.d/{dockerd,agent}/{run,finish}` |
+| contract | `base/CONTRACT.md`, `base/CONTRACT` |
+| tests | `base/tests/{lint.sh,contract.sh}` |
 
 ## Recipes
 
-**System package.** Add it to the matching apt block: base tooling, build
-toolchain, or CLI utilities. Keep the grouping — the layers are ordered so a
-package change does not invalidate the toolchain layer.
+**Package.** Add it to the matching apt block in `base/Dockerfile`; keep the
+layer grouping.
 
-**Service.** `image/rootfs/etc/services.d/<name>/run`, shebang
-`#!/command/with-contenv bash`, plus `finish` when it needs restart policy.
-Add both to the `test` stage's shellcheck list in `image/Dockerfile`.
+**Service.** Add `base/rootfs/etc/services.d/<name>/run`, plus `finish` if it
+needs restart policy. `base/tests/lint.sh` discovers scripts; do not edit a list.
 
-**Runtime default.** Set it in the image `ENV`, pass it from
-`compose.common.yml` when every stack needs it (or the stack service that owns
-it), and update `docs/configuration.md` in the same commit.
+**Runtime default.** Set the image ENV, add the knob to `config/knobs.env`, and
+run `make generate`.
 
-**Node version.** Debian bookworm provides 18.20. Do not add a second Node to
-the base; a CLI that needs newer installs its own in the child image.
+**Launch/health/state.** Change the contract in `base/CONTRACT.md` and the base
+dispatcher, then port every stack in the same change.
 
 ## Verify
 
 ```bash
-shellcheck image/rootfs/usr/local/bin/* image/rootfs/usr/local/lib/agent-base/*.sh
-scripts/bake.sh test     # builds; shellcheck + tool matrix inside the image
-make smoke               # both services, health, tool matrix in a real container
+make check
+tooling/bake.sh test
+tooling/bake.sh test-node22
+make smoke PROFILE=<id>
 ```
-
-`SMOKE_REQUIRE_DOCKER=1 make smoke` also fails when the inner daemon does not
-come up; it starts even inside a rootless host daemon, so a failure there is a
-real regression, not an environment quirk.
-
-## References
-
-- [docs/architecture.md](../../../docs/architecture.md)
-- [docs/configuration.md](../../../docs/configuration.md)
-- [.agents/checks.md](../../checks.md)

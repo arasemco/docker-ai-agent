@@ -1,53 +1,65 @@
 # agent-base documentation
 
-`agent-base` is a container image for AI coding-agent CLIs: a Debian sandbox
-with an unprivileged user, a rootless Docker daemon under s6 supervision, and
-the toolchain agents expect. It ships no agent — child images add their own CLI.
+`agent-base` is a container image for AI coding-agent CLIs: a Debian sandbox with
+an unprivileged user, a rootless Docker daemon under s6 supervision, and the
+toolchain agents expect. It ships no CLI; the stack modules add one each.
 
 ## Reading order
 
 | Document | What it answers |
 |---|---|
-| [architecture.md](architecture.md) | What is inside the image? How does it boot? Who runs what? |
-| [compose.md](compose.md) | How do the common service, profiles and stack services fit together? |
-| [configuration.md](configuration.md) | Every environment variable, volume, path and hook. |
-| [build.md](build.md) | Building, tagging, publishing, and where the OCI metadata comes from. |
-| [troubleshooting.md](troubleshooting.md) | The failures worth knowing before they happen. |
+| [explanation/architecture.md](explanation/architecture.md) | What is inside the base image? How does it boot? Launch, health, state? |
+| [reference/compose-model.md](reference/compose-model.md) | How do the common service, module fragments, profiles and the host overlay fit? |
+| [reference/configuration.md](reference/configuration.md) | Every environment variable, volume, path and hook. |
+| [reference/environment.md](reference/environment.md) | Generated variable reference from `config/knobs.env`. |
+| [reference/versions.md](reference/versions.md) | Generated pin matrix from `versions.env`. |
+| [reference/stacks.md](reference/stacks.md) | Generated stack index from `stacks/*/stack.yaml`. |
+| [how-to/build-and-release.md](how-to/build-and-release.md) | Building, versions, release gates and CI. |
+| [how-to/troubleshooting.md](how-to/troubleshooting.md) | The failures worth knowing before they happen. |
+| [adr/](adr/) | Decisions: module tree, launch line, common service, sub-ids, host overlay, claude. |
 
-Working on the repository itself (rather than using an image)?
-[start here](../.agents/README.md) — the map, invariants and checks a coding agent
-needs.
+Working on the repository itself? Start at [`.agents/README.md`](../.agents/README.md).
 
-Each stack has its own documentation next to its image:
+## Stack modules
 
 | Stack | Documentation |
 |---|---|
 | OpenCode | [stacks/opencode/docs/index.md](../stacks/opencode/docs/index.md) |
-| DeepSeek Harness | [stacks/deepseek-harness/docs/index.md](../stacks/deepseek-harness/docs/index.md) |
+| DeepSeek Harness | [stacks/dsh/docs/index.md](../stacks/dsh/docs/index.md) |
 | Claude Code | [stacks/claude/docs/index.md](../stacks/claude/docs/index.md) |
 
 ## The one-paragraph version
 
-`image/` builds Debian 12 with Node/npm from Debian, an `agent` user at
-uid/gid 1000, docker-ce rootless, Python/uv/yq and a build toolchain. `s6-overlay`
-is PID 1 and runs two longruns: `dockerd` (announces readiness when the API
-answers) and `agent` (waits for that, then runs the launch line named by its
-run script). `docker-compose.yml` extends the shared `common` service from
-`compose.common.yml` and defines one service per stack, behind a profile;
-`docker compose --profile <name> up` starts exactly one stack. A stack image
-needs `FROM`, its CLI, and its own
-`services.d/agent/run` naming the executable — the idler when the CLI is
-interactive, as in `stacks/claude` — and the compose file carries no `command:`;
-s6 runs a container `CMD` as a separate foreground command, not as the CLI's
-arguments.
+`base/Dockerfile` builds Debian 12 with Node/npm, an `agent:1000` user, the
+rootless Docker daemon, a toolchain and s6. s6 runs two longruns: `dockerd` and
+`agent`; the agent longrun sources `/etc/agent-launch.d/agent.sh` (shipped by the
+stack), then hooks, and execs the CLI. Stack health/state fragments extend the
+same contract. `tooling/bake.sh` builds every image from `versions.env`; compose
+runs the exported image references, with module fragments included by
+`docker-compose.yml`.
 
-## Conventions used throughout
+## Conventions
 
-- **Common service** — the `common` service in `compose.common.yml` owns the
-  sandbox, environment and daemon volume; each stack service extends it.
-- **Child image** — an image built `FROM agent-base`, adding one agent CLI.
-- **Agent user** — the unprivileged account (`agent`, uid/gid 1000) that both
-  services run as; the container's PID 1 stays root.
-- **`AGENT_*`** — variables read by the image and its s6 services (`AGENT_WORKSPACE`,
-  `AGENT_DOCKERD`, `AGENT_RESTART_MAX`, …). Everything under `image/` is generic;
-  values for a particular host belong in `.env` or `compose/local.yml`.
+- **Base** — `base/`: the sandbox image and its contract. Generic, host-free.
+- **Stack module** — `stacks/<id>/`: one CLI, its launch line, state, health,
+  compose/bake fragments, probe and docs.
+- **Common service** — `compose/common.yml`: profile-less, image-less,
+  build-less; every module fragment extends it.
+- **Host overlay** — `docker-compose.local.yml`: gitignored host values, passed
+  with `LOCAL_COMPOSE` or `-f`.
+- **Agent user** — `agent`, uid/gid 1000; the image ABI, not a deployment knob.
+
+## Where each fact is owned
+
+| Fact | Canonical home | Derived or checked |
+|---|---|---|
+| pins and versions | `versions.env` | `docs/reference/versions.md`, bake tags — generated |
+| deployment knobs | `config/knobs.env` | `.env.example`, `docs/reference/environment.md` — generated |
+| stack identity and metadata | `stacks/<id>/stack.yaml` | `docs/reference/stacks.md` — generated |
+| launch line | `stacks/<id>/image/agent-launch.d/agent.sh` + `base/CONTRACT.md` | contract tests |
+| health semantics | `stacks/<id>/stack.yaml` + `image/health.d/` | contract test + smoke |
+| state paths | `stacks/<id>/image/state.d/*.paths` + `base/CONTRACT.md` | base ownership init + stack check |
+| compose topology | `docker-compose.yml` + module `compose.yml` fragments | `make check` config matrix |
+| build/release targets | `base/bake.hcl`, `stacks/<id>/bake.hcl`, `tooling/` | `docs/reference/targets.md` — generated |
+| checks | `make check`, `tooling/check.sh` | `docs/reference/checks.md` — generated |
+| decisions | `docs/adr/` | review |

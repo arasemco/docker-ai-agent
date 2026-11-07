@@ -10,11 +10,11 @@ runs without one, but `claude` will ask you to sign in.
 | `CLAUDE_HOME_HOST` | `claude-home` | volume or host path mounted at `CLAUDE_CONFIG_DIR` |
 | `CLAUDE_CODE_OAUTH_TOKEN` | – | long-lived subscription token from `claude setup-token` |
 | `ANTHROPIC_API_KEY` | – | API key for direct Anthropic API billing |
-| `AGENT_BASE` | `agent-base:1.5.0` | base image the Dockerfile builds from |
+| `AGENT_BASE` | `agent-base:2.0.0` | base image the Dockerfile builds from |
 | `CLAUDE_CONFIG_DIR` | `/home/agent/.claude` | set by the image; every path Claude Code writes lives here |
 
 The sandbox variables (`AGENT_DOCKERD`, `AGENT_CPUS`, `PROXY`, …) are shared with
-every stack; see [the base configuration reference](../../../docs/configuration.md).
+every stack; see [the base configuration reference](../../../docs/reference/configuration.md).
 
 ## Authentication
 

@@ -3,7 +3,7 @@ name: configure-providers
 description: Set up OpenCode providers — a local OpenAI-compatible endpoint, hosted API keys, or a seeded opencode.jsonc — without baking deployment values into the image. Use when the UI shows no usable model or a provider must be added or moved.
 metadata:
   area: config
-  files: stacks/opencode/examples/, docker-compose.yml
+  files: stacks/opencode/image/, docker-compose.yml, docker-compose.local.yml
 ---
 
 # Configure providers
@@ -27,13 +27,13 @@ in this repository changes.
 
 ## Option B — seed a config file
 
-1. Copy `examples/config/opencode.jsonc` to a file you keep (for example
-   `compose/opencode.jsonc`, gitignored).
+1. Keep a JSONC file you control (for example `compose/opencode.jsonc`,
+   gitignored).
 2. Adjust the provider block: `baseURL` and `apiKey` read `OLLAMA_BASE_URL` and
    `OLLAMA_API_KEY`, so the endpoint can move without editing the file.
 3. Make the file available at `/home/agent/.config/opencode/opencode.jsonc`,
    either by writing it into the `opencode-config` volume or by binding it in
-   `compose/local.yml`:
+   `docker-compose.local.yml`:
 
    ```yaml
    services:
@@ -42,7 +42,7 @@ in this repository changes.
          - ./compose/opencode.jsonc:/home/agent/.config/opencode/opencode.jsonc:ro
    ```
 
-4. Put the endpoint and keys in `.env` (see `examples/env/providers.env`), then
+4. Put the endpoint and keys in `.env` (see `docs/reference/configuration.md`), then
    `make up`.
 
 ## Verify

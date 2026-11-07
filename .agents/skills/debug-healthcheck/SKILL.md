@@ -3,7 +3,7 @@ name: debug-healthcheck
 description: Diagnose the dsh healthcheck and the UI behind it — 401 vs failure, missing browser-session secret, port mismatch, crashed server, or a healthcheck that passes while the browser cannot use the UI. Use when the container is unhealthy or the UI does not answer.
 metadata:
   area: runtime
-  files: stacks/deepseek-harness/image/healthcheck.mjs, scripts/smoke.sh
+  files: stacks/dsh/image/healthcheck.mjs, tooling/smoke.sh
 ---
 
 # Debug the healthcheck and the UI
@@ -28,7 +28,7 @@ the message distinguishes:
 make ps
 curl -s -o /dev/null -w '%{http_code}\n' http://127.0.0.1:3080/   # 401 = server up
 make logs                                                          # hook + agent lines
-docker compose --profile opencode exec --no-TTY dsh node /usr/local/lib/dsh-healthcheck.mjs
+docker compose --profile dsh exec --no-TTY dsh node /usr/local/lib/dsh-healthcheck.mjs
 ```
 
 ## Port and host
@@ -52,6 +52,6 @@ server listens on the container's own 127.0.0.1 where nothing can reach it.
 ## Verify a fix
 
 ```bash
-docker compose --profile opencode exec --no-TTY dsh node /usr/local/lib/dsh-healthcheck.mjs && echo healthy
+docker compose --profile dsh exec --no-TTY dsh node /usr/local/lib/dsh-healthcheck.mjs && echo healthy
 make smoke
 ```

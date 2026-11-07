@@ -2,53 +2,32 @@
 # =============================================================================
 # opencode — the OpenCode CLI/Web UI on top of agent-base
 # =============================================================================
-# This image adds only OpenCode to the shared sandbox provided by agent-base:
-# the Debian base, the agent user, s6 supervision, the rootless Docker daemon,
-# the toolchain and the healthcheck all come from there.
-#
-# Contents:
-#   * opencode-ai from npm, pinned to an exact version
-#   * its state directories, owned by the agent user
-#   * services.d/agent/run, the s6 service's launch line (`opencode web ...`)
-#
-# No provider configuration is baked in: which providers exist and where they
-# run is deployment-specific. See ../examples/config/.
+# agent-base provides the sandbox, the agent user, s6, the rootless daemon and
+# the launch/health/state contracts. This image adds only OpenCode, its launch
+# line, its state manifest and its health fragment.
 # =============================================================================
-
-# The shared base, pinned to a tag so a rebuild is reproducible. Without a
-# registry prefix this resolves to a locally built image; override AGENT_BASE to
-# use a pushed one.
-ARG AGENT_BASE=agent-base:1.5.0
+ARG AGENT_BASE
 FROM ${AGENT_BASE} AS opencode
+ARG AGENT_CONTRACT=2
+ARG OPENCODE_VERSION
 
-# Exact opencode-ai version (`npm view opencode-ai versions`); a dist-tag would
-# float.
-ARG OPENCODE_VERSION=1.19.5
-
-# The official npm package ships per-platform binaries as optionalDependencies
-# and a postinstall that links the right one. Installed as root so it lands in
-# /usr/local and is on the agent user's PATH.
 RUN npm install --global --no-fund --no-audit --no-update-notifier "opencode-ai@${OPENCODE_VERSION}" \
-    && opencode --version
-
-# State directories must exist in the image owned by the agent user: a fresh
-# named volume mounted on a path the image does not have comes up root-owned,
-# and opencode then fails with
-# "PermissionDenied: FileSystem.open (.../log/opencode.log)". install -d sets the
-# ownership explicitly; the recursive pass covers what `opencode --version`
-# created as root above.
-RUN install -d -o 1000 -g 1000 \
+    && opencode --version \
+    && install -d -o 1000 -g 1000 \
         "/home/agent/.config/opencode" \
         "/home/agent/.local/share/opencode" \
         "/home/agent/.local/state/opencode" \
         "/home/agent/.cache/opencode" \
-    && chown -R 1000:1000 "/home/agent/.local" "/home/agent/.config" "/home/agent/.cache"
+    && chown -R 1000:1000 "/home/agent/.config" "/home/agent/.local" "/home/agent/.cache"
 
-# No USER switch: s6-overlay's /init is PID 1 as root and drops to the agent
-# user per service. The CLI itself runs unprivileged.
-
-# The stack's launch line lives in the image, not in the compose file: this
-# replaces the base image's services.d/agent/run with `opencode web ...`.
-COPY --chmod=755 services.d/agent/run /etc/services.d/agent/run
+COPY --chmod=755 agent-launch.d/agent.sh /etc/agent-launch.d/agent.sh
+COPY --chmod=644 state.d/ /etc/agent-state.d/
+COPY --chmod=755 health.d/ /etc/agent-healthcheck.d/
 
 EXPOSE 4096
+
+FROM opencode AS test
+ARG AGENT_CONTRACT
+RUN /usr/local/lib/agent-base/contract.sh \
+    && [ "$(cat /etc/agent-base/CONTRACT)" = "${AGENT_CONTRACT}" ] \
+    && opencode --version

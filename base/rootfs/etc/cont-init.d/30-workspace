@@ -1,0 +1,32 @@
+#!/command/with-contenv bash
+# =============================================================================
+# cont-init.d/30-workspace — creates the workspace and ensures the agent can
+# write it, chowning only the directory itself (it may be a whole source tree).
+# Aborts startup with a clear message when the mount cannot be fixed.
+# =============================================================================
+set -euo pipefail
+
+# shellcheck source=/dev/null
+. /usr/local/lib/agent-base/lib.sh
+
+AGENT_USER="${AGENT_USER:-agent}"
+AGENT_WORKSPACE="${AGENT_WORKSPACE:-$(agent_home)/workspace}"
+uid="$(agent_uid)"
+gid="$(agent_gid)"
+
+mkdir -p "${AGENT_WORKSPACE}" 2>/dev/null || true
+if [ ! -d "${AGENT_WORKSPACE}" ]; then
+    log "ERROR: ${AGENT_WORKSPACE} does not exist and could not be created."
+    exit 1
+fi
+if ! /command/s6-setuidgid "${AGENT_USER}" test -w "${AGENT_WORKSPACE}"; then
+    log "${AGENT_WORKSPACE} is not writable by ${AGENT_USER}; taking ownership of that directory (non-recursive)"
+    chown "${uid}:${gid}" "${AGENT_WORKSPACE}" 2>/dev/null || true
+fi
+if ! /command/s6-setuidgid "${AGENT_USER}" test -w "${AGENT_WORKSPACE}"; then
+    log "ERROR: ${AGENT_WORKSPACE} is not writable by ${AGENT_USER} (uid ${uid}, gid ${gid})."
+    log "On a host whose Docker is rootless, bind mounts appear root-owned inside the container;"
+    log "use a named volume, or chown the host directory to ${uid}:${gid} on the host."
+    exit 1
+fi
+log "workspace ${AGENT_WORKSPACE} is writable by ${AGENT_USER}"

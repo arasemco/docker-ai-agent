@@ -17,11 +17,11 @@ has the map, invariants and checks.
 
 ## The short version
 
-`image/Dockerfile` copies Node 22 from its official image (Claude Code declares
+`base/Dockerfile` copies Node 22 from its official image (Claude Code declares
 `engines >=22`, and agent-base ships Node 18), installs
 `@anthropic-ai/claude-code` from npm, and sets
 `CLAUDE_CONFIG_DIR=/home/agent/.claude` so settings, credentials, transcripts
 and `.claude.json` share one volume. Claude Code is an interactive TUI with no
-local server mode, so `image/services.d/agent/run` keeps the base idler
+local server mode, so `image/agent-launch.d/agent.sh` keeps the base idler
 running and the CLI is started through `make exec`. `make smoke` proves the
 binary runs and reports the authentication state.

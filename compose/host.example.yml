@@ -1,0 +1,23 @@
+# Placeholder for the host overlay. Copy to docker-compose.local.yml at the
+# repository root (gitignored), fill in the real host paths/devices, and pass it
+# with:
+#
+#   make up PROFILE=<id> LOCAL_COMPOSE=docker-compose.local.yml
+#   docker compose --profile <id> -f docker-compose.yml -f docker-compose.local.yml up -d
+#
+# It is the only place for host binds, the agent tree, GPU devices and
+# host-specific limits. Never commit the filled-in file.
+x-host-volumes: &host-volumes
+  - ${HOME}/.agents:/home/agent/.agents:ro
+  - ${HOME}/Projects:/home/agent/Projects:rw
+  - ${HOME}/stacks:/home/agent/stacks:ro
+
+services:
+  agent-base:
+    volumes: *host-volumes
+  opencode:
+    volumes: *host-volumes
+  dsh:
+    volumes: *host-volumes
+  claude:
+    volumes: *host-volumes

@@ -1,0 +1,7 @@
+# Per-stack healthcheck fragments.
+#
+# Base agent-healthcheck runs every executable *.sh here (lexical order) in
+# `auto` and `stack` modes. A fragment exits 0 for healthy, non-zero for
+# unhealthy, and may print one diagnostic line to stderr. The base modes stay
+# available through AGENT_HEALTHCHECK; `off` disables everything, fragments
+# included.
