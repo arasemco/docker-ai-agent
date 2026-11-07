@@ -142,6 +142,8 @@ RUN mkdir -p "/home/${AGENT_USER}/workspace" \
         "/home/${AGENT_USER}/.ssh" \
         "/home/${AGENT_USER}/.config" \
         "/home/${AGENT_USER}/.cache" \
+        "/home/${AGENT_USER}/.cache/uv" \
+        "/home/${AGENT_USER}/.local/share/uv" \
         "/home/${AGENT_USER}/.agents/skills" \
         "/etc/agent-entrypoint.d" \
     && chmod 700 "/home/${AGENT_USER}/.ssh" \
