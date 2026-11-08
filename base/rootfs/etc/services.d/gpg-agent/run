@@ -10,6 +10,11 @@
 #
 # The agent owns the GPG home volume: the keyring, gpg-agent.conf and the
 # S.gpg-agent.ssh socket ssh(1) reaches through SSH_AUTH_SOCK.
+#
+# A passphrase-protected key cannot answer a signing request without a
+# pinentry, and a container usually has none. When the deployment mounts the
+# passphrase at ~/.gpg-passphrase (a compose secret), this script presets it
+# for every authentication subkey at startup so ssh(1) signs without a prompt.
 # =============================================================================
 set -euo pipefail
 
@@ -18,8 +23,10 @@ export AGENT_LOG_TAG=gpg-agent
 . /usr/local/lib/agent-base/lib.sh
 
 AGENT_USER="${AGENT_USER:-agent}"
-gpg_home="$(agent_home)/.gnupg"
+agent_home_dir="$(agent_home)"
+gpg_home="${agent_home_dir}/.gnupg"
 agent_socket="${gpg_home}/S.gpg-agent"
+passphrase_file="${agent_home_dir}/.gpg-passphrase"
 
 as_agent() {
     /command/s6-setuidgid "${AGENT_USER}" "$@"
@@ -28,8 +35,35 @@ as_agent() {
 start_agent() {
     # --disable-scdaemon: no smartcard reader is passed into the sandbox, and
     # the image ships no scdaemon, so probing for one only logs errors.
+    # --allow-preset-passphrase: lets the supervisor hand the agent the PIN for
+    # the unattended SSH signing described above.
     as_agent gpg-agent --homedir "${gpg_home}" --enable-ssh-support \
-        --disable-scdaemon --daemon
+        --disable-scdaemon --allow-preset-passphrase --daemon
+}
+
+# Give the agent the PIN for every authentication subkey, so an ssh signing
+# request needs no pinentry. Skipped when the deployment supplied no secret.
+preset_passphrases() {
+    [ -r "${passphrase_file}" ] || return 0
+    local hex grip
+    hex="$(head -n 1 "${passphrase_file}" 2>/dev/null | tr -d '\n' \
+        | od -An -v -tx1 | tr -d ' \n')"
+    [ -n "${hex}" ] || return 0
+    while IFS= read -r grip; do
+        [ -n "${grip}" ] || continue
+        if printf 'PRESET_PASSPHRASE %s -1 %s\n/bye\n' "${grip}" "${hex}" \
+                | gpg-connect-agent --homedir "${gpg_home}" >/dev/null 2>&1; then
+            log "preset the passphrase for authentication key ${grip}"
+        else
+            log "WARNING: cannot preset the passphrase for ${grip}; is --allow-preset-passphrase active?"
+        fi
+    done < <(as_agent gpg --homedir "${gpg_home}" --with-keygrip --list-keys 2>/dev/null \
+        | awk '/\[A\]/{getline; sub(/^ +Keygrip = /, ""); print}')
+}
+
+launch_agent() {
+    start_agent || return 1
+    preset_passphrases
 }
 
 agent_answers() {
@@ -44,7 +78,7 @@ agent_answers() {
 mkdir -p "${gpg_home}"
 chmod 0700 "${gpg_home}"
 
-if start_agent; then
+if launch_agent; then
     log "gpg-agent started (homedir ${gpg_home}, ssh support on)"
 else
     log "WARNING: gpg-agent did not start; retrying"
@@ -57,6 +91,6 @@ while :; do
     sleep 10
     if ! agent_answers; then
         log "gpg-agent is not answering; relaunching it"
-        start_agent || log "WARNING: gpg-agent relaunch failed"
+        launch_agent || log "WARNING: gpg-agent relaunch failed"
     fi
 done

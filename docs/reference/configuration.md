@@ -51,3 +51,8 @@ The inner daemon uses the shared `agent-docker` volume, the uv cache/data use
 `agent-ssh` (all declared in `base/compose.yml`). Each stack declares its own
 home and workspace volumes in its `compose.yml`; the `*_HOST` variable points at
 a host path to bind instead.
+
+When the deployment mounts the key passphrase at `~/.gpg-passphrase` (a compose
+secret), the gpg-agent service presets it for every authentication subkey at
+startup, so `ssh(1)` signs without a pinentry prompt. Without that secret the
+agent starts locked and a signing request asks for the passphrase.
