@@ -9,6 +9,7 @@ edit.
 |---|---|
 | `env/proxy.env` | proxy values for a private network (one `PROXY=`, or per-scheme) |
 | `compose/local.yml` | a machine-specific host overlay: the agent tree, extra binds, per-host tweaks |
+| `compose/local.full.yml` | a fuller host overlay: GPU reservation, git identity and GPG signing configs, passphrase secret |
 | `child-image/` | the smallest child image on top of agent-base, plus its stack |
 
 Where the real files live (both gitignored):

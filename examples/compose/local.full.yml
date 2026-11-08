@@ -1,0 +1,121 @@
+# =============================================================================
+# Example: a fuller machine-specific docker-compose.local.yml
+# =============================================================================
+# Copy to docker-compose.local.yml at the repository root (gitignored); `make`
+# applies that file by default. It shows what examples/compose/local.yml leaves
+# out: a GPU reservation, the agent's git identity with GPG commit signing, and
+# the passphrase the signing wrapper reads from a compose secret.
+#
+#   docker compose --profile dsh \
+#       -f docker-compose.yml -f docker-compose.local.yml up -d
+#
+# The passphrase file stays out of the repository: `.gitignore` already ignores
+# `secrets/`, and the file must be mode 600.
+# =============================================================================
+
+# Reserve an AMD GPU for the stack that runs the agent (drop this on a host
+# without one).
+x-rocm-gpu: &rocm-gpu
+  ipc: host
+  shm_size: "8g"
+  security_opt:
+    - seccomp:unconfined
+  devices:
+    - /dev/kfd
+    - /dev/dri
+  group_add:
+    - "27"   # video (host GID)
+    - "28"   # render (host GID)
+  deploy:
+    resources:
+      limits:
+        cpus: "12"
+        memory: 96G
+      reservations:
+        memory: 16G
+
+include:
+  - path:
+      - docker-compose.yml
+    env_file:
+      - .env
+
+# Git identity and commit/tag signing for the agent user. The wrapper adds the
+# loopback pinentry options git cannot pass itself, so the passphrase is read
+# from the secret below instead of a pinentry prompt.
+configs:
+  gitconfig:
+    content: |
+      [user]
+              name = <your-name>
+              email = <you@example.com>
+              signingkey = <gpg-key-fingerprint>
+      [gpg]
+              program = /home/agent/.local/bin/gpg-sign
+      [commit]
+              gpgsign = true
+      [tag]
+              gpgsign = true
+      [color]
+              ui = always
+      [init]
+              defaultBranch = main
+  gpg-sign:
+    content: |
+      #!/bin/sh
+      # gpg with loopback pinentry so git can sign without a tty.
+      exec gpg --pinentry-mode loopback --passphrase-file /home/agent/.gpg-passphrase "$@"
+
+secrets:
+  gpg-passphrase:
+    file: ./secrets/gpg_passphrase
+
+x-local:
+  agents: &local-agents ${HOME}/.agents:/mnt/share/agents:ro
+  stacks: &local-stacks ${HOME}/stacks:/home/${AGENT_USER:-agent}/stacks:ro
+  templates: &local-templates ${HOME}/stacks/000-templates:/home/${AGENT_USER:-agent}/stacks/000-templates:rw
+  projects: &local-projects ${HOME}/Projects:/home/${AGENT_USER:-agent}/Projects:rw
+
+x-volumes:
+  volumes: &volumes
+    - *local-agents
+    - *local-stacks
+    - *local-templates
+    - *local-projects
+
+x-configs:
+  configs: &configs
+    - source: gitconfig
+      target: /home/agent/.gitconfig
+    - source: gpg-sign
+      target: /home/agent/.local/bin/gpg-sign
+      mode: 0755
+
+x-secrets:
+  secrets: &secrets
+    - source: gpg-passphrase
+      target: /home/agent/.gpg-passphrase
+
+services:
+  agent-base:
+    volumes: *volumes
+    configs: *configs
+    secrets: *secrets
+
+  opencode:
+    volumes: *volumes
+    configs: *configs
+    secrets: *secrets
+
+  dsh:
+    <<: *rocm-gpu
+    volumes: *volumes
+    configs: *configs
+    secrets: *secrets
+
+  claude:
+    tty: true
+    stdin_open: true
+    volumes: *volumes
+    configs: *configs
+    secrets: *secrets
