@@ -37,6 +37,8 @@ jobs:
             echo "CACHE_WRITE=true"
           } >> "${GITHUB_ENV}"
 
+      # GIT_TOKEN is a Gitea token with write:package, added as a repository
+      # secret; build.yml asserts it is set.
       - name: Log in to the registry
         uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9
         with:
