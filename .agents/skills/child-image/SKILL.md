@@ -12,7 +12,7 @@ The base provides the sandbox and the contract; the child provides one CLI and
 the contract files.
 
 ```dockerfile
-ARG AGENT_BASE=agent-base:2.0.0
+ARG AGENT_BASE=agent-base:2.0.1
 FROM ${AGENT_BASE}
 ARG AGENT_CONTRACT=2
 ARG CLI_VERSION=1.0.0

@@ -27,12 +27,14 @@ for dir in \
     "${agent_home_dir}/.local/bin" \
     "${agent_home_dir}/.config" \
     "${agent_home_dir}/.cache" \
-    "${agent_home_dir}/.ssh"; do
+    "${agent_home_dir}/.ssh" \
+    "${agent_home_dir}/.gnupg"; do
     mkdir -p "${dir}"
     chown "${uid}:${gid}" "${dir}" 2>/dev/null || true
 done
 chmod 0700 "${agent_home_dir}/.docker/run"
 chmod 0700 "${agent_home_dir}/.ssh"
+chmod 0700 "${agent_home_dir}/.gnupg"
 
 mkdir -p /run/agent
 chown "${uid}:${gid}" /run/agent

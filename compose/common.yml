@@ -56,9 +56,10 @@ services:
       all_proxy: "${all_proxy:-${ALL_PROXY:-${PROXY:-}}}"
       no_proxy: "${no_proxy:-${NO_PROXY:-localhost,127.0.0.1,::1}}"
 
-    # The daemon data and the uv cache/data are named volumes. They are declared
-    # by base/compose.yml, which is always included.
+    # The daemon data, the uv cache/data and the GPG home are named volumes.
+    # They are declared by base/compose.yml, which is always included.
     volumes:
       - ${AGENT_DOCKER_VOLUME:-agent-docker}:/home/agent/.local/share/docker
       - ${AGENT_UV_CACHE_VOLUME:-uv-cache}:/home/${AGENT_USER:-agent}/.cache/uv
       - ${AGENT_UV_DATA_VOLUME:-uv-data}:/home/${AGENT_USER:-agent}/.local/share/uv
+      - ${AGENT_GNUPG_VOLUME:-agent-gnupg}:/home/agent/.gnupg
