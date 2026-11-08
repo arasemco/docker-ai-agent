@@ -7,7 +7,8 @@ top of it. A breaking change bumps `base/CONTRACT`; every stack declares
 ## Image invariants
 
 - `/init` (s6-overlay) is PID 1 as root; no image ends with `USER`.
-- `dockerd` and `agent` are the longruns; both drop to `agent` (uid/gid 1000).
+- `dockerd`, `gpg-agent` and `agent` are the longruns; all drop to `agent`
+  (uid/gid 1000).
 - The identity is frozen: `agent:1000`, home `/home/agent`. Host binds and
   named volumes rely on it; it is not a deployment knob.
 - The base owns `HEALTHCHECK`; stacks add fragments, never replace the check.

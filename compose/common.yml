@@ -47,6 +47,9 @@ services:
       AGENT_DOCKERD_TIMEOUT: "${AGENT_DOCKERD_TIMEOUT:-30}"
       AGENT_DOCKERD_MAX_RESTARTS: "${AGENT_DOCKERD_MAX_RESTARTS:-3}"
       AGENT_RESTART_MAX: "${AGENT_RESTART_MAX:-3}"
+      # ssh(1) authenticates through gpg-agent: its SSH socket lives in the GPG
+      # home volume, gpg-agent serves the key with the authentication subkey.
+      SSH_AUTH_SOCK: /home/agent/.gnupg/S.gpg-agent.ssh
       HTTP_PROXY: "${HTTP_PROXY:-${http_proxy:-${PROXY:-}}}"
       HTTPS_PROXY: "${HTTPS_PROXY:-${https_proxy:-${PROXY:-}}}"
       ALL_PROXY: "${ALL_PROXY:-${all_proxy:-${PROXY:-}}}"

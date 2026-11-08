@@ -4,7 +4,7 @@ Generated from `versions.env`; do not edit.
 
 | Pin | Value |
 |---|---|
-| `BASE_VERSION` | `2.0.2` |
+| `BASE_VERSION` | `2.0.3` |
 | `AGENT_CONTRACT` | `2` |
 | `DEBIAN_REF` | `docker.io/library/debian:bookworm-slim@sha256:99c0b25c46d0214d5a2091092e7908907dcaecd6a962cde0ac700acee222b6f3` |
 | `S6_OVERLAY_VERSION` | `3.2.3.0` |

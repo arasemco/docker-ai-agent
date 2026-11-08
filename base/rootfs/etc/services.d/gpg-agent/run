@@ -1,0 +1,62 @@
+#!/command/with-contenv bash
+# =============================================================================
+# services.d/gpg-agent/run — gpg-agent as AGENT_USER, SSH support enabled.
+#
+# gpg-agent has no foreground longrun: it daemonises even with --no-detach, and
+# --supervised expects systemd's LISTEN_FDS, which s6 does not provide. So this
+# script starts the daemon and stays in the foreground as its supervisor: it
+# relaunches an agent that stops answering, and kills it when the container
+# stops.
+#
+# The agent owns the GPG home volume: the keyring, gpg-agent.conf and the
+# S.gpg-agent.ssh socket ssh(1) reaches through SSH_AUTH_SOCK.
+# =============================================================================
+set -euo pipefail
+
+export AGENT_LOG_TAG=gpg-agent
+# shellcheck source=/dev/null
+. /usr/local/lib/agent-base/lib.sh
+
+AGENT_USER="${AGENT_USER:-agent}"
+gpg_home="$(agent_home)/.gnupg"
+agent_socket="${gpg_home}/S.gpg-agent"
+
+as_agent() {
+    /command/s6-setuidgid "${AGENT_USER}" "$@"
+}
+
+start_agent() {
+    # --disable-scdaemon: no smartcard reader is passed into the sandbox, and
+    # the image ships no scdaemon, so probing for one only logs errors.
+    as_agent gpg-agent --homedir "${gpg_home}" --enable-ssh-support \
+        --disable-scdaemon --daemon
+}
+
+agent_answers() {
+    [ -S "${agent_socket}" ] || return 1
+    # ssh-add -l speaks the ssh-agent protocol: 0 identities listed, 1 no
+    # identities, 2 cannot connect.
+    local rc=0
+    as_agent env SSH_AUTH_SOCK="${agent_socket}" ssh-add -l >/dev/null 2>&1 || rc=$?
+    [ "${rc}" -le 1 ]
+}
+
+mkdir -p "${gpg_home}"
+chmod 0700 "${gpg_home}"
+
+if start_agent; then
+    log "gpg-agent started (homedir ${gpg_home}, ssh support on)"
+else
+    log "WARNING: gpg-agent did not start; retrying"
+fi
+
+trap 'log "stopping gpg-agent"; as_agent gpgconf --homedir "${gpg_home}" --kill gpg-agent 2>/dev/null || true; exit 0' TERM INT
+
+# s6 restarts this script if it ever exits; while it runs, the agent is kept up.
+while :; do
+    sleep 10
+    if ! agent_answers; then
+        log "gpg-agent is not answering; relaunching it"
+        start_agent || log "WARNING: gpg-agent relaunch failed"
+    fi
+done

@@ -25,6 +25,7 @@ debian:bookworm-slim (digest-pinned)
     /usr/local/lib/agent-base/{lib.sh,selftest.sh,contract.sh}
     /etc/cont-init.d/{10-ownership,20-subid,30-workspace}
     /etc/services.d/{dockerd,agent}/{run,finish}
+    /etc/services.d/gpg-agent/run     gpg-agent with SSH support
     /etc/agent-launch.d/agent.sh      base launch line (idler)
     /etc/agent-healthcheck.d/         per-stack fragments
     /etc/agent-state.d/               per-stack state manifests
@@ -41,8 +42,8 @@ copied from its pinned image. dsh and Claude Code build `FROM` that variant.
 2. Stage 2 cont-init runs as root: `10-ownership` creates state dirs and applies
    the stack manifests, `20-subid` remaps subordinate ids for a rootless host,
    `30-workspace` makes the workspace writable or aborts with a clear message.
-3. `dockerd` and `agent` start. `agent` waits for the daemon readiness
-   notification, writes the start stamp and drops to the agent user.
+3. `dockerd`, `gpg-agent` and `agent` start. `agent` waits for the daemon
+   readiness notification, writes the start stamp and drops to the agent user.
 4. `agent-run` reads `/etc/agent-launch.d/agent.sh`, sets `AGENT_LAUNCH`, sources
    hooks, applies their `$@` rewrite and execs the launch line.
 5. On exit, the base restart policy applies: exit 0 stops the tree, a crash after
@@ -67,6 +68,7 @@ The contract version is `base/CONTRACT`; every stack declares
 | `/home/agent/workspace` | agent | working directory |
 | `/home/agent/.local/share/docker` | subuids | rootless daemon data (named volume) |
 | `/home/agent/.docker/dockerd.log` | agent | daemon log |
+| `/home/agent/.gnupg` | agent | GPG keyring and gpg-agent sockets (named volume) |
 | `/run/agent/*` | root/agent | start stamps, restart counters, exit code |
 | stack state dirs | agent | declared in `/etc/agent-state.d` |
 
