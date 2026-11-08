@@ -12,6 +12,7 @@ Generated from `config/knobs.env`; do not edit.
 | `AGENT_UV_CACHE_VOLUME` | `uv-cache` | named volume for the uv cache |
 | `AGENT_UV_DATA_VOLUME` | `uv-data` | named volume for uv data |
 | `AGENT_GNUPG_VOLUME` | `agent-gnupg` | named volume for the GPG home (keyring, gpg-agent, SSH socket) |
+| `AGENT_SSH_VOLUME` | `agent-ssh` | named volume for the SSH config and keys |
 | `AGENT_WORKSPACE_HOST` | `agent-workspace` | volume or host path for the sandbox workspace |
 | `AGENT_HOSTNAME` | `agent` | container hostname where compose allows it |
 | `AGENT_CPUS` | `2` | CPU limit for the common service |

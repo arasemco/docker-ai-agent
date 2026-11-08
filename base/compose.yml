@@ -12,6 +12,7 @@ services:
 volumes:
   agent-docker:
   agent-gnupg:
+  agent-ssh:
   agent-workspace:
   uv-cache:
   uv-data:

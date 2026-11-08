@@ -30,11 +30,11 @@ services:
 
 `compose/common.yml` is profile-less, image-less and build-less. It owns the
 sandbox devices, seccomp exceptions, default resource limits, proxy resolution
-and the daemon/uv/GPG home volume references. It contains no host values.
+and the daemon/uv/GPG/SSH home volume references. It contains no host values.
 
-The shared `agent-docker`, `agent-gnupg`, `agent-workspace`, `uv-cache` and
-`uv-data` volumes are declared in `base/compose.yml`, which is always included;
-`extends` does not import top-level resources.
+The shared `agent-docker`, `agent-gnupg`, `agent-ssh`, `agent-workspace`,
+`uv-cache` and `uv-data` volumes are declared in `base/compose.yml`, which is
+always included; `extends` does not import top-level resources.
 
 ## Profiles
 
