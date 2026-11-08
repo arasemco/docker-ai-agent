@@ -40,9 +40,11 @@ include:
     env_file:
       - .env
 
-# Git identity and commit/tag signing for the agent user. The wrapper adds the
-# loopback pinentry options git cannot pass itself, so the passphrase is read
-# from the secret below instead of a pinentry prompt.
+# Git identity and commit/tag signing for the agent user. Fill in the name, the
+# email and the signing key's full fingerprint, listed by:
+#   gpg --list-secret-keys --keyid-format=long
+# The wrapper adds the loopback pinentry options git cannot pass itself, so the
+# passphrase is read from the secret below instead of a pinentry prompt.
 configs:
   gitconfig:
     content: |
@@ -68,6 +70,12 @@ configs:
 
 secrets:
   gpg-passphrase:
+    # The signing key's passphrase; gpg-agent presets it at startup, so ssh(1)
+    # signs without a pinentry prompt, and the wrapper above reads the same
+    # file for git. It must match the key's passphrase, so generate it before
+    # creating the key, or change the key's passphrase to match it:
+    #   mkdir -p secrets
+    #   (umask 077; gpg --gen-random --armor 1 128 > secrets/gpg_passphrase)
     file: ./secrets/gpg_passphrase
 
 x-local:

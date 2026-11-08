@@ -1,3 +1,5 @@
+# Local secrets, e.g. the signing key's passphrase:
+# examples/compose/local.full.yml.
 secrets
 .idea
 

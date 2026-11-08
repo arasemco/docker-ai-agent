@@ -56,3 +56,12 @@ When the deployment mounts the key passphrase at `~/.gpg-passphrase` (a compose
 secret), the gpg-agent service presets it for every authentication subkey at
 startup, so `ssh(1)` signs without a pinentry prompt. Without that secret the
 agent starts locked and a signing request asks for the passphrase.
+
+The keyring lives in the `agent-gnupg` volume: create or import the key
+there (for example in `make exec PROFILE=<id>`), with a signing key for git
+and an authentication subkey for SSH; point `AGENT_GNUPG_VOLUME` or
+`AGENT_SSH_VOLUME` at a host directory to bind an existing keyring or SSH home
+instead. The passphrase file holds that key's own passphrase, is gitignored
+and must be mode 600; the example `examples/compose/local.full.yml` declares it
+and carries the generation command. To use the key over SSH, add the public key
+printed by `gpg --export-ssh-key <fingerprint>` to the remote's authorized keys.

@@ -12,9 +12,11 @@ edit.
 | `compose/local.full.yml` | a fuller host overlay: GPU reservation, git identity and GPG signing configs, passphrase secret |
 | `child-image/` | the smallest child image on top of agent-base, plus its stack |
 
-Where the real files live (both gitignored):
+Where the real files live (all gitignored):
 
 - `.env` — copy `.env.example`, then merge whichever `env/` file applies
 - `docker-compose.local.yml` — copy `examples/compose/local.yml` to the repository root
+- `secrets/gpg_passphrase` — the signing key's passphrase, mode 600; see
+  `compose/local.full.yml` for the generation command
 
 See [docs/reference/compose-model.md](../docs/reference/compose-model.md#local-overrides) for the invocation.
